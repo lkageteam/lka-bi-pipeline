@@ -179,6 +179,7 @@ class ETLPipeline:
 
 if __name__ == "__main__":
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--flows", nargs="*", default=None, help="Sous-ensemble de flux a executer (par nom)")
@@ -186,4 +187,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     pipeline = ETLPipeline()
-    pipeline.run(flow_names=args.flows, dry_run=args.dry_run)
+    result = pipeline.run(flow_names=args.flows, dry_run=args.dry_run)
+
+    # IMPORTANT: sans ceci, un run avec des flux en erreur (ex: connexion
+    # MySQL refusee) se termine quand meme avec exit code 0 - GitHub Actions
+    # rapporterait "success" a tort. Deja arrive en production (2026-07-01):
+    # 4 flux sur 5 en erreur, workflow marque vert.
+    if result["status"] != "success":
+        sys.exit(1)

@@ -99,6 +99,21 @@ class SQLLoader:
         if primary_key not in df.columns and "_id" in df.columns:
             primary_key = "_id"
 
+        self._load_data_with_retry(df, table_name, primary_key)
+
+    @retry(
+        stop=stop_after_attempt(8),
+        wait=wait_exponential(multiplier=1, min=3, max=30),
+        retry=retry_if_exception_type((OperationalError, DBAPIError)),
+        reraise=True,
+    )
+    def _load_data_with_retry(self, df: pd.DataFrame, table_name: str, primary_key: str) -> None:
+        """
+        Chaque appel de load_data() ouvre potentiellement une NOUVELLE
+        connexion TCP (le pool peut etre vide/recycle) - le retry sur
+        SQLLoader.connect() seul ne protege donc pas cette etape. Meme
+        logique de retry ici, reproductible independamment par flux/batch.
+        """
         with self.engine.begin() as conn:
             inspector = inspect(self.engine)
             table_exists = inspector.has_table(table_name)
