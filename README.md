@@ -2,6 +2,12 @@
 
 Pipeline ETL MongoDB -> MySQL pour Power Process BI, execute via GitHub Actions.
 
+## Statut actuel (2026-07-01)
+
+⚠️ **L'automatisation via GitHub Actions n'est pas encore fiable.** Le pipeline (code, config des 5 flux, tests) est valide et fonctionne correctement **en local** via le tunnel WireGuard. Mais les 3 tentatives d'execution depuis un runner GitHub Actions (heberges sur Azure) ont toutes echoue des l'etape de montage du tunnel WireGuard : le handshake n'aboutit meme pas dans 2 cas sur 3. Ce n'est pas de la malchance ponctuelle (3/3 echecs), et ca semble specifique aux plages IP Azure — les tests manuels (SSH direct, tunnel local) fonctionnent, avec retries.
+Hypothese : filtrage/rate-limiting cote Contabo specifique aux IP de grands clouds (Azure/AWS/GCP). Ticket support envoye a Contabo (voir `bi-gerrish/analyses/CONTABO_SUPPORT_TICKET.md`) avec ce constat precis.
+**En attendant une reponse de Contabo**, ce pipeline est utilisable en execution manuelle locale (`python -m src.etl.pipeline`) via le tunnel WireGuard, mais pas encore en cron GitHub Actions.
+
 ## Architecture
 
 - `config/flows.yaml` : declare chaque flux (collection source, filtre, projection, table cible, regles de transformation). Ajouter un flux = ajouter une entree ici, pas de code Python a toucher.
