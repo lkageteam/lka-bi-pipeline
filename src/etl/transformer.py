@@ -24,6 +24,8 @@ class DataTransformer:
             logger.warning(f"[{flow.name}] Aucune donnee a transformer.")
             return pd.DataFrame()
 
+        data = self._sanitize_date_field(data, flow.date_field, flow.name)
+
         # Aplatit les sous-documents (userInfo.firstName -> userInfo_firstName)
         # au lieu de les serialiser en JSON, pour matcher les projections
         # Mongo demandees (colonnes individuelles, pas de blob).
@@ -45,6 +47,30 @@ class DataTransformer:
 
         logger.info(f"[{flow.name}] Transformation terminee ({len(df)} lignes, {len(df.columns)} colonnes).")
         return df
+
+    def _sanitize_date_field(
+        self, data: List[Dict[str, Any]], date_field: str, flow_name: str
+    ) -> List[Dict[str, Any]]:
+        """
+        Anomalie de qualite de donnees observee en production : certains
+        documents stockent dans `createdAt` une expression d'agregation
+        Mongo non evaluee (ex: {'$dateSubtract': {...}}) plutot qu'une date.
+        pd.json_normalize aplatirait cet objet en colonnes parasites
+        (createdAt_$dateSubtract_*) et ferait varier le schema d'un batch
+        a l'autre. On neutralise ces valeurs en None avant l'aplatissement.
+        """
+        anomalies = 0
+        for doc in data:
+            value = doc.get(date_field)
+            if isinstance(value, dict):
+                doc[date_field] = None
+                anomalies += 1
+        if anomalies:
+            logger.warning(
+                f"[{flow_name}] {anomalies} document(s) avec '{date_field}' invalide "
+                f"(expression Mongo non evaluee) neutralise(s) en NULL."
+            )
+        return data
 
     def _standardize_dates(self, df: pd.DataFrame, date_field: str) -> pd.DataFrame:
         if date_field in df.columns:

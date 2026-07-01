@@ -51,6 +51,24 @@ def test_dedup_and_min_length_filter():
     assert df.iloc[0]["numSim"] == "12345678"
 
 
+def test_malformed_createdAt_expression_object_is_neutralized():
+    """
+    Anomalie observee en production sur bareports : certains documents ont
+    createdAt = {'$dateSubtract': {...}} (expression Mongo non evaluee)
+    au lieu d'une vraie date. Doit etre neutralise en NULL, pas aplati en
+    colonnes parasites (createdAt_$dateSubtract_*).
+    """
+    data = [
+        {"_id": "1", "createdAt": "2025-01-01T00:00:00Z", "numSim": "12345678"},
+        {"_id": "2", "createdAt": {"$dateSubtract": {"startDate": "$createdAt", "unit": "day", "amount": 1}}, "numSim": "87654321"},
+    ]
+    flow = make_flow()
+    df = DataTransformer().transform_flow(data, flow)
+    assert not any(c.startswith("createdAt_") for c in df.columns)
+    assert "createdAt" in df.columns
+    assert df["createdAt"].isna().sum() == 1
+
+
 def test_case_insensitive_duplicate_columns_removed():
     data = [{"_id": "1", "Date": "2025-01-01", "date": "2025-01-01"}]
     flow = make_flow()
