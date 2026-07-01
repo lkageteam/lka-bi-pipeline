@@ -142,8 +142,16 @@ class ETLPipeline:
 
                     if flow.date_field in df.columns:
                         batch_max = df[flow.date_field].max()
-                        if pd.notna(batch_max) and (max_date_seen is None or batch_max > max_date_seen):
-                            max_date_seen = batch_max
+                        if pd.notna(batch_max):
+                            # MySQL DATETIME (sync_state.last_synced_at) est naif ;
+                            # transform_flow produit des Timestamp UTC tz-aware.
+                            # Normaliser en naif partout pour rendre la comparaison
+                            # et le stockage coherents (bug reel observe en prod :
+                            # "can't compare offset-naive and offset-aware datetimes").
+                            if batch_max.tzinfo is not None:
+                                batch_max = batch_max.tz_localize(None)
+                            if max_date_seen is None or batch_max > max_date_seen:
+                                max_date_seen = batch_max
 
                 total_docs += flow_docs
                 logger.info(f"[{flow.name}] termine: {flow_docs} lignes.")
