@@ -4,24 +4,24 @@ Pipeline ETL MongoDB -> MySQL pour Power Process BI, execute via GitHub Actions.
 
 ## Statut actuel (2026-07-01)
 
-⚠️ **L'automatisation via GitHub Actions n'est pas encore fiable.** Le pipeline (code, config des 5 flux, tests) est valide et fonctionne correctement **en local** via le tunnel WireGuard. Mais les 3 tentatives d'execution depuis un runner GitHub Actions (heberges sur Azure) ont toutes echoue des l'etape de montage du tunnel WireGuard : le handshake n'aboutit meme pas dans 2 cas sur 3. Ce n'est pas de la malchance ponctuelle (3/3 echecs), et ca semble specifique aux plages IP Azure — les tests manuels (SSH direct, tunnel local) fonctionnent, avec retries.
-Hypothese : filtrage/rate-limiting cote Contabo specifique aux IP de grands clouds (Azure/AWS/GCP). Ticket support envoye a Contabo (voir `bi-gerrish/analyses/CONTABO_SUPPORT_TICKET.md`) avec ce constat precis.
-**En attendant une reponse de Contabo**, ce pipeline est utilisable en execution manuelle locale (`python -m src.etl.pipeline`) via le tunnel WireGuard, mais pas encore en cron GitHub Actions.
+✅ Pipeline valide en local (tunnel WireGuard) **et** depuis GitHub Actions en **connexion directe** (sans tunnel). Un diagnostic reseau initial avait mesure ~30% d'echecs TCP directs et laisse penser que les runners GitHub Actions (Azure) etaient specifiquement bloques par Contabo (2 runs sur 3 avec echec du handshake WireGuard). Ce constat s'est revele trompeur : le repo `AUTOMATIONS-BI` (meme infra MySQL/Mongo) tourne en connexion directe depuis GitHub Actions avec 15+ runs recents en succes, et un test direct sur ce repo a egalement reussi du premier coup. La cause exacte des echecs precedents reste incertaine (fenetre de test malchanceuse ou instabilite reellement transitoire), mais la connexion directe est desormais le mode par defaut du workflow (`use_tunnel=false`).
+
+Le tunnel WireGuard reste en place et disponible (`use_tunnel=true` dans le workflow, ou `MYSQL_HOST=10.66.66.1` en local) comme filet de secours si la connexion directe redevient instable.
 
 ## Architecture
 
 - `config/flows.yaml` : declare chaque flux (collection source, filtre, projection, table cible, regles de transformation). Ajouter un flux = ajouter une entree ici, pas de code Python a toucher.
 - `src/etl/extractor.py` : extraction Mongo par batch, avec filtre/projection arbitraires (`extract_with_query`). Le filtre temporel utilise une borne sur `_id` (ObjectId, timestamp integre) plutot que sur le champ date lui-meme, car `_id` est indexe par defaut sur toute collection Mongo — pas besoin de droits admin pour creer un index dedie.
 - `src/etl/transformer.py` : transformation pilotee par la config du flux (pas d'heuristique sur le nom de collection). Aplatissement des sous-documents en colonnes prefixees (`pd.json_normalize`), fusion des typos de colonnes badge, filtre/dedoublonnage.
-- `src/etl/loader.py` : chargement MySQL, creation automatique de table ou upsert via staging (`INSERT ... ON DUPLICATE KEY UPDATE`).
+- `src/etl/loader.py` : chargement MySQL, creation automatique de table ou upsert via staging (`INSERT ... ON DUPLICATE KEY UPDATE`), retry (tenacity) sur la connexion.
 - `src/etl/pipeline.py` : orchestrateur, suivi via les tables `sync_runs` (audit des executions) / `sync_state` (checkpoint incremental par flux).
 
 ## Connectivite MySQL
 
-Le serveur MySQL cible (`75.119.154.255`) a un taux d'echec de connexion TCP directe d'environ 30% (diagnostic reseau documente dans le repo `bi-gerrish`, `docs_ETL_MIGRATION_PLAN_V3.md` §2). Le pipeline (local et CI) passe donc par un tunnel WireGuard :
+Connexion directe a `75.119.154.255:3306` par defaut (fiable, cf. §Statut). Un tunnel WireGuard reste disponible en secours :
 
 - Local : importer le fichier de config WireGuard recu separement, puis utiliser `MYSQL_HOST=10.66.66.1`.
-- CI (GitHub Actions) : le workflow `.github/workflows/etl-sync.yml` monte automatiquement le tunnel via `scripts/wireguard_up.sh` (peer dedie, distinct du peer local) avant de lancer le pipeline.
+- CI (GitHub Actions) : lancer le workflow avec l'input `use_tunnel=true` pour monter le tunnel (`scripts/wireguard_up.sh`, peer dedie) au lieu de la connexion directe.
 
 ## Lancer en local
 

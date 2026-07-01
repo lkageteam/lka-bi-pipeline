@@ -12,9 +12,9 @@ on:
         required: false
         default: "false"
       use_tunnel:
-        description: "Passer par le tunnel WireGuard (false = connexion directe a l'IP publique, pour test comparatif)"
+        description: "Passer par le tunnel WireGuard (connexion directe fonctionne de maniere fiable, cf. AUTOMATIONS-BI - a activer seulement si la connexion directe redevient instable)"
         required: false
-        default: "true"
+        default: "false"
 
 # Pas de cron pour l'instant (cf. plan : premiers runs en manuel avant
 # d'activer la planification automatique).
