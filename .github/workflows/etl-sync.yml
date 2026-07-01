@@ -46,25 +46,6 @@ jobs:
           WG_CLIENT_ADDRESS: ${{ vars.WG_CLIENT_ADDRESS }}
         run: bash scripts/wireguard_up.sh
 
-      - name: Test connexion directe (sans tunnel)
-        if: ${{ github.event.inputs.use_tunnel == 'false' }}
-        env:
-          MYSQL_HOST_DIRECT: ${{ vars.MYSQL_HOST_DIRECT }}
-          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
-        run: |
-          python - <<'PY'
-          import os, socket
-          host = os.environ["MYSQL_HOST_DIRECT"]
-          port = int(os.environ["MYSQL_PORT"])
-          s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-          s.settimeout(10)
-          try:
-              s.connect((host, port))
-              print(f"Connexion directe a {host}:{port} OK")
-          finally:
-              s.close()
-          PY
-
       - name: Executer le pipeline ETL
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
