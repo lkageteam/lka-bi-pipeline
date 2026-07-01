@@ -35,14 +35,22 @@ sudo chmod 600 /etc/wireguard/wg0.conf
 sudo wg-quick up wg0
 
 echo "Tunnel WireGuard actif. Test de connectivite MySQL (10.66.66.1:3306)..."
-for i in 1 2 3 4 5; do
-  if timeout 5 bash -c "cat < /dev/null > /dev/tcp/10.66.66.1/3306" 2>/dev/null; then
+# IMPORTANT: le tunnel WireGuard n'elimine pas la perte de paquets residuelle
+# sur le lien reseau (diagnostic : ~30% d'echecs TCP observes) - il fournit
+# juste un chemin longue-duree qui absorbe les pertes via son propre
+# mecanisme de handshake auto-retry. Chaque tentative TCP individuelle a
+# travers le tunnel reste soumise a cette meme perte de paquets residuelle.
+# Un timeout court (5s) coupe la connexion AVANT que les retransmissions SYN
+# natives du noyau (RTO ~1s, doublement exponentiel) aient une chance
+# d'aboutir. On utilise donc un timeout large par tentative plutot que
+# beaucoup de tentatives courtes.
+for i in 1 2 3; do
+  if timeout 25 bash -c "cat < /dev/null > /dev/tcp/10.66.66.1/3306" 2>/dev/null; then
     echo "Connexion TCP a 10.66.66.1:3306 OK (tentative $i)."
     exit 0
   fi
-  echo "Tentative $i echouee, retry..."
-  sleep 2
+  echo "Tentative $i echouee (apres 25s), retry..."
 done
 
-echo "ERREUR: impossible d'atteindre 10.66.66.1:3306 via le tunnel apres 5 tentatives." >&2
+echo "ERREUR: impossible d'atteindre 10.66.66.1:3306 via le tunnel apres 3 tentatives de 25s." >&2
 exit 1

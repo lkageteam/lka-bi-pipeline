@@ -6,6 +6,8 @@ from urllib.parse import quote_plus
 import pandas as pd
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import OperationalError, DBAPIError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +32,19 @@ class SQLLoader:
         self.connection_string = connection_string or os.getenv("MYSQL_URI", default_uri)
         self.engine: Optional[Engine] = None
 
+    @retry(
+        stop=stop_after_attempt(8),
+        wait=wait_exponential(multiplier=1, min=3, max=30),
+        retry=retry_if_exception_type((OperationalError, DBAPIError)),
+        reraise=True,
+    )
     def connect(self) -> None:
+        """
+        Retry genereux (8 tentatives, backoff exponentiel jusqu'a 30s) :
+        meme via le tunnel WireGuard, la perte de paquets residuelle sur le
+        lien reseau peut faire echouer une tentative de connexion isolee
+        (cf. diagnostic reseau documente sur le serveur MySQL cible).
+        """
         logger.info("Connexion a MySQL...")
         self.engine = create_engine(
             self.connection_string,
