@@ -1,0 +1,175 @@
+# Configuration declarative des flux ETL Mongo -> MySQL.
+#
+# Chaque flux correspond a un filtre/projection valide manuellement par le
+# referent metier dans MongoDB Compass (confiance forte, en attendant
+# confirmation finale de Gerrish sur les noms de table exacts).
+#
+# Pour ajouter un flux : ajouter une entree ici, aucun changement de code
+# Python necessaire.
+
+flows:
+
+  - name: tsa_reports
+    source_collection: reports
+    target_database: lka_bi_dw
+    target_table: TSA_Reports
+    primary_key: _id
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    projection:
+      posId: 1
+      userInfo.firstName: 1
+      userInfo.lastName: 1
+      userInfo.phoneNumber: 1
+      userInfo._id: 1
+      userInfo.corporateNumber: 1
+      posInfo.posNumber: 1
+      posInfo.ownerName: 1
+      posInfo.ownerLastName: 1
+      posInfo.typePos: 1
+      posInfo.posAgentNumber: 1
+      posInfo.posMerchantNumber: 1
+      posInfo.ownerLastNumber: 1
+      posInfo.kindOfPos: 1
+      posInfo.activityPeriod: 1
+      posInfo.activityHour: 1
+      createdAt: 1
+      catPDV: 1
+      eCashMTN: 1
+      cashinMTN: 1
+      cashoutMTN: 1
+      airtimeMTN: 1
+      simNumberMTN: 1
+      longitude: 1
+      latitude: 1
+      typeReport: 1
+      etsName: 1
+      tsaName: 1
+      tsaLastName: 1
+      eCashMoov: 1
+      eCashCeltiis: 1
+      cashinMOOV: 1
+      cashinCeltiis: 1
+      cashoutMOOV: 1
+      cashoutCeltiis: 1
+      airtimeMOOV: 1
+      airtimeCeltiis: 1
+      simNumberMOOV: 1
+      simNumberCeltiis: 1
+      visibiltyState: 1
+      frequencyMTN: 1
+      frequencyMOOV: 1
+      frequencyCeltiis: 1
+
+  - name: tsa_activities
+    source_collection: activities
+    target_database: lka_bi_dw
+    # Nom provisoire : le referent a confirme que 'activities' alimente
+    # TSA_ACTIVITIES, mais pas la table exacte (TSA_Reports deja pris par
+    # le flux ci-dessus). A reconfirmer avec Gerrish.
+    target_table: TSA_Deployments
+    primary_key: _id
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    projection:
+      posId: 1
+      posInfo.etsName: 1
+      userInfo.firstName: 1
+      userInfo.lastName: 1
+      userInfo.phoneNumber: 1
+      userInfo._id: 1
+      userInfo.corporateNumber: 1
+      posInfo.posNumber: 1
+      posInfo.ownerName: 1
+      posInfo.ownerLastName: 1
+      activityName: 1
+      formLink: 1
+      latitude: 1
+      longitude: 1
+      createdAt: 1
+      agentInfo.phoneNumber: 1
+
+  - name: vente_sim
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-vente-sim
+    target_database: lka_bi_dw
+    target_table: VENTE_SIM
+    primary_key: _id
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    badge_merge: true
+    dedup_key: numSim
+    phone_min_length: 8
+    projection:
+      userInfo.idUnique: 1
+      userInfo.numeroBadge: 1
+      createdAt: 1
+      numSim: 1
+      statusSimVendue: 1
+      compteMomo: 1
+      statusMomo: 1
+      depotInitial: 1
+      activationForfait: 1
+      typeForfait: 1
+      montantForfait: 1
+      modeActivation: 1
+      region: 1
+      newUserData: 1
+      moovNumberCalled: 1
+      moovNumberCalling: 1
+      typeBa: 1
+      userInfo.superviseurIdUnique: 1
+
+  - name: dtc_activation
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-dtc-activation
+    target_database: lka_bi_dw
+    # Orthographe conservee volontairement (table legacy DTC_EXISITING)
+    target_table: DTC_EXISITING
+    primary_key: _id
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    badge_merge: true
+    dedup_key: numClient
+    phone_min_length: 8
+    projection:
+      userInfo.idUnique: 1
+      userInfo.numeroBadge: 1
+      createdAt: 1
+      numClient: 1
+      montantDepot: 1
+      posCompteAbonne: 1
+      serviceAchete: 1
+      zone: 1
+      region: 1
+      typeBa: 1
+      userInfo.superviseurIdUnique: 1
+
+  - name: zotcheze
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-zotcheze
+    target_database: lka_bi_dw
+    # Aucune table legacy connue pour ce flux - nouvelle table.
+    target_table: ZOTCHEZE
+    primary_key: _id
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    badge_merge: true
+    dedup_key: numClient
+    phone_min_length: 8
+    projection:
+      userInfo.idUnique: 1
+      userInfo.numeroBadge: 1
+      createdAt: 1
+      numClient: 1
+      senderNumber: 1
+      montant: 1
+      posCompteAbonne: 1
+      forfait: 1
+      comment: 1
+      region: 1
+      typeBa: 1
+      userInfo.superviseurIdUnique: 1

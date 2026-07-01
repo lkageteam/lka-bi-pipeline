@@ -1,0 +1,59 @@
+import sys
+import os
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from src.etl.flows import FlowConfig
+from src.etl.transformer import DataTransformer
+
+
+def make_flow(**overrides):
+    defaults = dict(
+        name="test_flow",
+        source_collection="bareports",
+        target_table="TEST_TABLE",
+    )
+    defaults.update(overrides)
+    return FlowConfig(**defaults)
+
+
+def test_flattens_nested_fields_with_prefix():
+    data = [{"_id": "1", "userInfo": {"firstName": "Ama", "lastName": "K"}, "createdAt": "2025-01-01T00:00:00Z"}]
+    flow = make_flow()
+    df = DataTransformer().transform_flow(data, flow)
+    assert "userInfo_firstName" in df.columns
+    assert "userInfo_lastName" in df.columns
+    assert df.iloc[0]["userInfo_firstName"] == "Ama"
+
+
+def test_badge_merge_consolidates_typo_columns():
+    data = [
+        {"_id": "1", "numeroBadge": "B1", "numeroBagde": None, "createdAt": "2025-01-01T00:00:00Z"},
+        {"_id": "2", "numeroBadge": None, "numeroBagde": "B2", "createdAt": "2025-01-01T00:00:00Z"},
+    ]
+    flow = make_flow(badge_merge=True)
+    df = DataTransformer().transform_flow(data, flow)
+    assert "badge_unifie" in df.columns
+    assert set(df["badge_unifie"]) == {"B1", "B2"}
+    assert "numeroBadge" not in df.columns
+    assert "numeroBagde" not in df.columns
+
+
+def test_dedup_and_min_length_filter():
+    data = [
+        {"_id": "1", "numSim": "12345678", "createdAt": "2025-01-01T00:00:00Z"},
+        {"_id": "2", "numSim": "12345678", "createdAt": "2025-01-01T00:00:00Z"},  # doublon
+        {"_id": "3", "numSim": "123", "createdAt": "2025-01-01T00:00:00Z"},  # trop court
+    ]
+    flow = make_flow(dedup_key="numSim", phone_min_length=8)
+    df = DataTransformer().transform_flow(data, flow)
+    assert len(df) == 1
+    assert df.iloc[0]["numSim"] == "12345678"
+
+
+def test_case_insensitive_duplicate_columns_removed():
+    data = [{"_id": "1", "Date": "2025-01-01", "date": "2025-01-01"}]
+    flow = make_flow()
+    df = DataTransformer().transform_flow(data, flow)
+    cols_lower = [c.lower() for c in df.columns]
+    assert cols_lower.count("date") == 1

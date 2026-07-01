@@ -1,0 +1,67 @@
+name: ETL Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      flows:
+        description: "Flux a executer (separes par des espaces), vide = tous"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run (pas d'ecriture MySQL)"
+        required: false
+        default: "false"
+
+# Pas de cron pour l'instant (cf. plan : premiers runs en manuel avant
+# d'activer la planification automatique).
+
+concurrency:
+  group: etl-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dependances
+        run: pip install -r requirements.txt
+
+      - name: Monter le tunnel WireGuard
+        env:
+          WG_CI_PRIVATE_KEY: ${{ secrets.WG_CI_PRIVATE_KEY }}
+          WG_SERVER_PUBLIC_KEY: ${{ secrets.WG_SERVER_PUBLIC_KEY }}
+          WG_SERVER_ENDPOINT: ${{ vars.WG_SERVER_ENDPOINT }}
+          WG_CLIENT_ADDRESS: ${{ vars.WG_CLIENT_ADDRESS }}
+        run: bash scripts/wireguard_up.sh
+
+      - name: Executer le pipeline ETL
+        env:
+          MONGO_URI: ${{ secrets.MONGO_URI }}
+          MONGO_DB_NAME: ${{ vars.MONGO_DB_NAME }}
+          MYSQL_HOST: ${{ vars.MYSQL_HOST_TUNNEL }}
+          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
+          MYSQL_USER: ${{ vars.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ vars.MYSQL_DATABASE }}
+          FLOWS_INPUT: ${{ github.event.inputs.flows }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ -n "$FLOWS_INPUT" ]; then
+            ARGS="--flows $FLOWS_INPUT"
+          fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python -m src.etl.pipeline $ARGS
+
+      - name: Fermer le tunnel WireGuard
+        if: always()
+        run: sudo wg-quick down wg0 || true
