@@ -88,14 +88,25 @@ class SQLLoader:
 
     def _text_dtype_map(self, df: pd.DataFrame) -> dict:
         """
-        Force TEXT (pas de limite de longueur) pour toutes les colonnes
-        texte lors de la creation d'une table. Sans ca, SQLAlchemy/pandas
-        peut inferer un VARCHAR(N) base sur les longueurs observees dans le
-        SEUL premier batch - un batch ulterieur avec une valeur plus longue
-        declenche alors une erreur MySQL 1265 'Data truncated' (deja
-        observe en prod sur tsa_deployments : agentInfo_idUnique).
+        Force TEXT (pas de limite de longueur) pour :
+        - toutes les colonnes de type 'object' (texte) - sans ca, SQLAlchemy/
+          pandas peut inferer un VARCHAR(N) base sur les longueurs observees
+          dans le SEUL premier batch, et un batch ulterieur avec une valeur
+          plus longue declenche une erreur MySQL 1265 'Data truncated'.
+        - toutes les colonnes ENTIEREMENT vides (NaN) dans ce batch : pandas
+          leur assigne le dtype float64 par defaut (aucune valeur pour
+          deviner le vrai type), ce qui cree une colonne DOUBLE/FLOAT si
+          c'est le premier batch qui sert a creer la table. Si un batch
+          ulterieur y met une vraie valeur texte (ex: agentInfo_idUnique,
+          vide dans le premier batch de tsa_deployments mais alphanumerique
+          ensuite), la meme erreur 1265 se produit - deja observe 2 fois en
+          prod avant ce correctif.
         """
-        return {col: Text for col in df.columns if df[col].dtype == "object"}
+        return {
+            col: Text
+            for col in df.columns
+            if pd.api.types.is_string_dtype(df[col]) or df[col].isna().all()
+        }
 
     def _sync_columns(self, conn, inspector, table_name: str, df: pd.DataFrame) -> None:
         """
