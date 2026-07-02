@@ -85,6 +85,28 @@ class SQLLoader:
             else:
                 logger.warning(f"Note sur la PK de `{table_name}`: {e}")
 
+    def _sync_columns(self, conn, inspector, table_name: str, df: pd.DataFrame) -> None:
+        """
+        Ajoute a la table les colonnes presentes dans ce batch mais absentes
+        de la table (schema drift). Necessaire pour les flux en export
+        complet (ex: `pos` -> tsa_deployments) : selon la date de creation
+        du document, des sous-documents optionnels differents sont peuples
+        (ex: `createdBy` avec ses propres champs imbriques), donc des
+        colonnes nouvelles peuvent apparaitre dans un batch ulterieur au
+        premier (qui a defini le schema initial de la table).
+        """
+        existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+        new_cols = [c for c in df.columns if c not in existing_cols]
+        for col in new_cols:
+            try:
+                conn.execute(text(f"ALTER TABLE `{table_name}` ADD COLUMN `{col}` TEXT NULL"))
+                logger.info(f"Colonne `{col}` ajoutee sur `{table_name}` (schema drift).")
+            except Exception as e:
+                if "1060" in str(e) or "Duplicate column" in str(e):
+                    pass
+                else:
+                    raise
+
     def load_data(self, df: pd.DataFrame, table_name: str, primary_key: str = "_id") -> None:
         if df.empty:
             logger.warning(f"Aucune donnee a charger pour '{table_name}'.")
@@ -152,6 +174,8 @@ class SQLLoader:
                     self._ensure_primary_key(conn, table_name, primary_key)
                 logger.info(f"Table '{table_name}' creee ({len(df)} lignes).")
             else:
+                self._sync_columns(conn, inspector, table_name, df)
+
                 staging_table = f"_stg_{table_name}"
                 df.to_sql(staging_table, conn, if_exists="replace", index=False, chunksize=5000, method="multi")
 
