@@ -130,8 +130,12 @@ class ETLPipeline:
                     if df.empty:
                         continue
 
-                    if "_id" in df.columns:
-                        df["_id"] = df["_id"].astype(str)
+                    # Le nom de la colonne _id peut avoir ete renomme par le
+                    # transformer (convention legacy X_id) - convertir la
+                    # colonne qui sert reellement de cle primaire pour ce flux.
+                    id_col = flow.primary_key if flow.primary_key in df.columns else "_id"
+                    if id_col in df.columns:
+                        df[id_col] = df[id_col].astype(str)
 
                     if dry_run:
                         logger.info(f"[DRY RUN][{flow.name}] +{len(df)} lignes | colonnes: {list(df.columns)}")

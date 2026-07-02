@@ -34,6 +34,12 @@ class DataTransformer:
 
         df = self._standardize_dates(df, flow.date_field)
 
+        if flow.add_date_time_split:
+            df = self._add_date_time_split(df, flow.date_field)
+
+        if flow.rename_id_to:
+            df = self._rename_id(df, flow.rename_id_to)
+
         if flow.badge_merge:
             df = self._normalize_badges(df)
 
@@ -75,6 +81,25 @@ class DataTransformer:
     def _standardize_dates(self, df: pd.DataFrame, date_field: str) -> pd.DataFrame:
         if date_field in df.columns:
             df[date_field] = pd.to_datetime(df[date_field], errors="coerce", utc=True)
+        return df
+
+    def _add_date_time_split(self, df: pd.DataFrame, date_field: str) -> pd.DataFrame:
+        """
+        Convention observee dans les 4 scripts R legacy : en plus du champ
+        date brut, ils ajoutent toujours des colonnes 'Date' (YYYY-MM-DD) et
+        'Time' (HH:MM:SS) separees, utilisees ensuite par les vues SQL
+        (ex: WHERE tr.Date BETWEEN ...).
+        """
+        if date_field in df.columns:
+            naive = df[date_field].dt.tz_localize(None) if df[date_field].dt.tz is not None else df[date_field]
+            df["Date"] = naive.dt.strftime("%Y-%m-%d")
+            df["Time"] = naive.dt.strftime("%H:%M:%S")
+        return df
+
+    def _rename_id(self, df: pd.DataFrame, new_name: str) -> pd.DataFrame:
+        """Convention legacy : `_id` Mongo est stocke sous le nom `X_id` (dbWriteTable echappe les noms commencant par underscore)."""
+        if "_id" in df.columns:
+            df = df.rename(columns={"_id": new_name})
         return df
 
     def _normalize_badges(self, df: pd.DataFrame) -> pd.DataFrame:

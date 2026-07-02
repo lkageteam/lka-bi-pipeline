@@ -1,8 +1,11 @@
 # Configuration declarative des flux ETL Mongo -> MySQL.
 #
-# Chaque flux correspond a un filtre/projection valide manuellement par le
-# referent metier dans MongoDB Compass (confiance forte, en attendant
-# confirmation finale de Gerrish sur les noms de table exacts).
+# Schema cible corrige a partir du dump reel de la base tsa_activities
+# (mysqldump fourni par l'utilisateur le 2026-07-02) et croisement avec les
+# 4 scripts R legacy (old_automate/). Convention confirmee dans TOUS les
+# scripts R : le champ Mongo `_id` est stocke sous le nom `X_id`, et un
+# split `Date`/`Time` est systematiquement ajoute a partir du champ date
+# (voir add_date_time_split / rename_id_to sur chaque flux ci-dessous).
 #
 # Pour ajouter un flux : ajouter une entree ici, aucun changement de code
 # Python necessaire.
@@ -12,8 +15,10 @@ flows:
   - name: tsa_reports
     source_collection: reports
     target_database: lka_bi_dw
-    target_table: TSA_Reports
-    primary_key: _id
+    target_table: tsa_reports
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
     projection:
@@ -61,33 +66,25 @@ flows:
       frequencyMOOV: 1
       frequencyCeltiis: 1
 
-  - name: tsa_activities
-    source_collection: activities
+  - name: tsa_deployments
+    # CORRECTION (2026-07-02) : la source reelle est la collection `pos`,
+    # pas `activities` comme suppose initialement. Confirme par le dump reel
+    # (colonnes agentInfo_*, posAgentNumber, type='deployment'/'Non') et par
+    # verification directe sur Mongo : agentInfo est bien peuple nativement
+    # sur les documents pos, et le champ `type` existe (285547/330886 docs).
+    source_collection: pos
     target_database: lka_bi_dw
-    # Nom provisoire : le referent a confirme que 'activities' alimente
-    # TSA_ACTIVITIES, mais pas la table exacte (TSA_Reports deja pris par
-    # le flux ci-dessus). A reconfirmer avec Gerrish.
-    target_table: TSA_Deployments
-    primary_key: _id
+    target_table: tsa_deployments
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
-    projection:
-      posId: 1
-      posInfo.etsName: 1
-      userInfo.firstName: 1
-      userInfo.lastName: 1
-      userInfo.phoneNumber: 1
-      userInfo._id: 1
-      userInfo.corporateNumber: 1
-      posInfo.posNumber: 1
-      posInfo.ownerName: 1
-      posInfo.ownerLastName: 1
-      activityName: 1
-      formLink: 1
-      latitude: 1
-      longitude: 1
-      createdAt: 1
-      agentInfo.phoneNumber: 1
+    # Pas de filtre/projection : export complet confirme par le referent
+    # (comme pos l'etait deja dans le handoff). La table brute contient les
+    # deux valeurs de `type` ('Non' et 'deployment') ; le filtre
+    # type='deployment' est applique cote vue SQL (tsa_monthly_performance),
+    # pas a l'extraction.
 
   - name: vente_sim
     source_collection: bareports
@@ -95,7 +92,9 @@ flows:
     type_filter: bs-vente-sim
     target_database: lka_bi_dw
     target_table: VENTE_SIM
-    primary_key: _id
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
     badge_merge: true
@@ -128,7 +127,9 @@ flows:
     target_database: lka_bi_dw
     # Orthographe conservee volontairement (table legacy DTC_EXISITING)
     target_table: DTC_EXISITING
-    primary_key: _id
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
     badge_merge: true
@@ -154,7 +155,9 @@ flows:
     target_database: lka_bi_dw
     # Aucune table legacy connue pour ce flux - nouvelle table.
     target_table: ZOTCHEZE
-    primary_key: _id
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
     badge_merge: true

@@ -26,6 +26,8 @@ class FlowConfig:
     badge_merge: bool = False
     dedup_key: Optional[str] = None
     phone_min_length: Optional[int] = None
+    rename_id_to: Optional[str] = None
+    add_date_time_split: bool = False
 
     def mongo_query(self, since: Optional[datetime] = None) -> Dict:
         """

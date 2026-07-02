@@ -51,6 +51,25 @@ def test_dedup_and_min_length_filter():
     assert df.iloc[0]["numSim"] == "12345678"
 
 
+def test_rename_id_to_x_id():
+    data = [{"_id": "abc123", "createdAt": "2025-01-01T10:30:00Z", "numSim": "12345678"}]
+    flow = make_flow(rename_id_to="X_id")
+    df = DataTransformer().transform_flow(data, flow)
+    assert "X_id" in df.columns
+    assert "_id" not in df.columns
+    assert df.iloc[0]["X_id"] == "abc123"
+
+
+def test_add_date_time_split():
+    data = [{"_id": "1", "createdAt": "2025-03-15T14:22:05Z", "numSim": "12345678"}]
+    flow = make_flow(add_date_time_split=True)
+    df = DataTransformer().transform_flow(data, flow)
+    assert df.iloc[0]["Date"] == "2025-03-15"
+    assert df.iloc[0]["Time"] == "14:22:05"
+    # createdAt original conserve (convention legacy : les deux coexistent)
+    assert "createdAt" in df.columns
+
+
 def test_malformed_createdAt_expression_object_is_neutralized():
     """
     Anomalie observee en production sur bareports : certains documents ont
