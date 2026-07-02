@@ -26,7 +26,10 @@ concurrency:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    # 90 min : le premier chargement (bootstrap) de tsa_reports (2.78M docs)
+    # a deja pris ~31 min a lui seul (2026-07-02). Les runs incrementaux
+    # suivants seront bien plus courts (cf. sync_state).
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
