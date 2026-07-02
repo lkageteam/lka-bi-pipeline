@@ -15,13 +15,33 @@ sudo apt-get install -y -qq sshpass
 
 # -N: pas de commande distante, juste le forward. -f: en arriere-plan.
 # StrictHostKeyChecking=no : runner ephemere, pas de known_hosts a gerer.
-sshpass -p "$SSH_PASS" ssh -N -f \
-  -o StrictHostKeyChecking=no \
-  -o ServerAliveInterval=15 \
-  -o ServerAliveCountMax=3 \
-  -o ExitOnForwardFailure=yes \
-  -L "127.0.0.1:${MYSQL_PORT}:127.0.0.1:${MYSQL_PORT}" \
-  "${SSH_USER}@${SSH_HOST}"
+#
+# L'authentification SSH elle-meme est intermittente sur ce serveur (deja
+# observe lors du diagnostic reseau initial : ~30-40% d'echecs meme avec le
+# bon mot de passe, "Permission denied" sporadique sans lien avec le mot de
+# passe reel). Retry sur la connexion, pas seulement sur le test TCP final.
+SSH_CONNECTED=0
+for i in 1 2 3 4 5; do
+  if sshpass -p "$SSH_PASS" ssh -N -f \
+    -o StrictHostKeyChecking=no \
+    -o ConnectTimeout=15 \
+    -o ServerAliveInterval=15 \
+    -o ServerAliveCountMax=3 \
+    -o ExitOnForwardFailure=yes \
+    -L "127.0.0.1:${MYSQL_PORT}:127.0.0.1:${MYSQL_PORT}" \
+    "${SSH_USER}@${SSH_HOST}"; then
+    SSH_CONNECTED=1
+    echo "Connexion SSH etablie (tentative $i)."
+    break
+  fi
+  echo "Connexion SSH echouee (tentative $i), retry..."
+  sleep 3
+done
+
+if [ "$SSH_CONNECTED" -ne 1 ]; then
+  echo "ERREUR: impossible d'etablir la connexion SSH apres 5 tentatives." >&2
+  exit 1
+fi
 
 echo "Tunnel SSH monte. Test de connectivite MySQL (127.0.0.1:${MYSQL_PORT}) via le tunnel..."
 for i in 1 2 3; do
