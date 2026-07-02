@@ -11,10 +11,15 @@ on:
         description: "Dry run (pas d'ecriture MySQL)"
         required: false
         default: "false"
-      use_tunnel:
-        description: "Passer par le tunnel WireGuard (connexion directe fonctionne de maniere fiable, cf. AUTOMATIONS-BI - a activer seulement si la connexion directe redevient instable)"
+      connection_mode:
+        description: "Chemin de connexion MySQL a utiliser"
         required: false
-        default: "false"
+        type: choice
+        default: direct
+        options:
+          - direct
+          - wireguard
+          - ssh_tunnel
 
 # Pas de cron pour l'instant (cf. plan : premiers runs en manuel avant
 # d'activer la planification automatique).
@@ -41,7 +46,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Monter le tunnel WireGuard
-        if: ${{ github.event.inputs.use_tunnel != 'false' }}
+        if: ${{ github.event.inputs.connection_mode == 'wireguard' }}
         env:
           WG_CI_PRIVATE_KEY: ${{ secrets.WG_CI_PRIVATE_KEY }}
           WG_SERVER_PUBLIC_KEY: ${{ secrets.WG_SERVER_PUBLIC_KEY }}
@@ -49,11 +54,20 @@ jobs:
           WG_CLIENT_ADDRESS: ${{ vars.WG_CLIENT_ADDRESS }}
         run: bash scripts/wireguard_up.sh
 
+      - name: Monter le tunnel SSH
+        if: ${{ github.event.inputs.connection_mode == 'ssh_tunnel' }}
+        env:
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_USER: ${{ vars.SSH_USER }}
+          SSH_PASS: ${{ secrets.SSH_PASS }}
+          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
+        run: bash scripts/ssh_tunnel_up.sh
+
       - name: Executer le pipeline ETL
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DB_NAME: ${{ vars.MONGO_DB_NAME }}
-          MYSQL_HOST: ${{ github.event.inputs.use_tunnel == 'false' && vars.MYSQL_HOST_DIRECT || vars.MYSQL_HOST_TUNNEL }}
+          MYSQL_HOST: ${{ github.event.inputs.connection_mode == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (github.event.inputs.connection_mode == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
           MYSQL_PORT: ${{ vars.MYSQL_PORT }}
           MYSQL_USER: ${{ vars.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
@@ -71,5 +85,9 @@ jobs:
           python -m src.etl.pipeline $ARGS
 
       - name: Fermer le tunnel WireGuard
-        if: ${{ always() && github.event.inputs.use_tunnel != 'false' }}
+        if: ${{ always() && github.event.inputs.connection_mode == 'wireguard' }}
         run: sudo wg-quick down wg0 || true
+
+      - name: Fermer le tunnel SSH
+        if: ${{ always() && github.event.inputs.connection_mode == 'ssh_tunnel' }}
+        run: pkill -f "ssh -N -f" || true
