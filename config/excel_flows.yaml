@@ -1,0 +1,60 @@
+# Tables alimentees depuis des fichiers Excel deposes dans le dossier
+# Google Drive partage (pas via MongoDB). Chaque flux : le fichier est
+# identifie par un motif de nom (find_by_name, insensible a la casse), pas
+# un nom exact, pour tolerer les variations (dates dans le nom, versions...).
+#
+# match: motif recherche dans le nom du fichier Drive
+# sheet: nom/index de la feuille Excel (0 = premiere feuille par defaut)
+# target_table / target_database: destination MySQL (overwrite complet a
+#   chaque run, comme le faisaient les scripts R legacy - ce sont des
+#   referentiels statiques, pas des flux transactionnels a upserter).
+#
+# Cible : lka_bi_dw (isole des bases legacy, meme decision que pour les
+# flux Mongo - cf. flows.yaml).
+
+excel_flows:
+
+  - name: tsa_numenclature
+    match: numenclature
+    target_database: lka_bi_dw
+    target_table: tsa_numenclature
+
+  - name: tsa_date
+    match: date
+    target_database: lka_bi_dw
+    target_table: tsa_date
+
+  - name: tsa_kiosk_data
+    match: kiosk
+    target_database: lka_bi_dw
+    target_table: tsa_kiosk_data
+
+  - name: newadd
+    match: newadd
+    target_database: lka_bi_dw
+    target_table: newadd
+
+  - name: tsa_rga30_target
+    match: rga30
+    target_database: lka_bi_dw
+    target_table: tsa_rga30_target
+
+  - name: tsa_rgb30_target
+    match: rgb30_target
+    target_database: lka_bi_dw
+    target_table: tsa_rgb30_target
+
+  - name: tsa_rgb30_client_data
+    match: rgb30_client
+    target_database: lka_bi_dw
+    target_table: tsa_rgb30_client_data
+
+  - name: tsa_sectorisation
+    match: sectorisation
+    target_database: lka_bi_dw
+    target_table: tsa_sectorisation
+
+  - name: value_share_pos
+    match: value_share
+    target_database: lka_bi_dw
+    target_table: value_share_pos

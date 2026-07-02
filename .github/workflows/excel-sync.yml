@@ -1,0 +1,56 @@
+name: Excel Sync (Google Drive)
+
+on:
+  workflow_dispatch:
+    inputs:
+      flows:
+        description: "Flux Excel a executer (separes par des espaces), vide = tous"
+        required: false
+        default: ""
+      dry_run:
+        description: "Dry run (pas d'ecriture MySQL)"
+        required: false
+        default: "false"
+
+# Pas de cron pour l'instant : mises a jour manuelles peu frequentes,
+# declenchement manuel en attendant de definir un rythme (cf. discussion
+# avec l'utilisateur).
+
+concurrency:
+  group: excel-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dependances
+        run: pip install -r requirements.txt
+
+      - name: Executer le pipeline Excel
+        env:
+          GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
+          GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID }}
+          MYSQL_HOST: ${{ vars.MYSQL_HOST_DIRECT }}
+          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
+          MYSQL_USER: ${{ vars.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ vars.MYSQL_DATABASE }}
+          FLOWS_INPUT: ${{ github.event.inputs.flows }}
+          DRY_RUN_INPUT: ${{ github.event.inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ -n "$FLOWS_INPUT" ]; then
+            ARGS="--flows $FLOWS_INPUT"
+          fi
+          if [ "$DRY_RUN_INPUT" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          python -m src.etl.excel_pipeline $ARGS

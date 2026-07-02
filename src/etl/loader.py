@@ -101,6 +101,33 @@ class SQLLoader:
 
         self._load_data_with_retry(df, table_name, primary_key)
 
+    def replace_table(self, df: pd.DataFrame, table_name: str) -> None:
+        """
+        Remplacement complet d'une table (DROP+CREATE), pour les
+        referentiels statiques (Excel) ou l'historique n'a pas de sens a
+        preserver - convention deja utilisee par les scripts R legacy
+        (dbWriteTable(..., overwrite = TRUE)).
+        """
+        if df.empty:
+            logger.warning(f"Aucune donnee a charger pour '{table_name}' (replace).")
+            return
+        if not self.engine:
+            self.connect()
+        df.columns = [str(c).replace(".", "_").replace(" ", "_").replace("-", "_") for c in df.columns]
+        df = self._prepare_dataframe_for_sql(df)
+        self._replace_table_with_retry(df, table_name)
+
+    @retry(
+        stop=stop_after_attempt(8),
+        wait=wait_exponential(multiplier=1, min=3, max=30),
+        retry=retry_if_exception_type((OperationalError, DBAPIError)),
+        reraise=True,
+    )
+    def _replace_table_with_retry(self, df: pd.DataFrame, table_name: str) -> None:
+        with self.engine.begin() as conn:
+            df.to_sql(table_name, conn, if_exists="replace", index=False, chunksize=5000, method="multi")
+        logger.info(f"Table '{table_name}' remplacee ({len(df)} lignes).")
+
     @retry(
         stop=stop_after_attempt(8),
         wait=wait_exponential(multiplier=1, min=3, max=30),
