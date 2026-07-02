@@ -7,6 +7,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text, inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import OperationalError, DBAPIError
+from sqlalchemy.types import Text
 from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
@@ -85,6 +86,17 @@ class SQLLoader:
             else:
                 logger.warning(f"Note sur la PK de `{table_name}`: {e}")
 
+    def _text_dtype_map(self, df: pd.DataFrame) -> dict:
+        """
+        Force TEXT (pas de limite de longueur) pour toutes les colonnes
+        texte lors de la creation d'une table. Sans ca, SQLAlchemy/pandas
+        peut inferer un VARCHAR(N) base sur les longueurs observees dans le
+        SEUL premier batch - un batch ulterieur avec une valeur plus longue
+        declenche alors une erreur MySQL 1265 'Data truncated' (deja
+        observe en prod sur tsa_deployments : agentInfo_idUnique).
+        """
+        return {col: Text for col in df.columns if df[col].dtype == "object"}
+
     def _sync_columns(self, conn, inspector, table_name: str, df: pd.DataFrame) -> None:
         """
         Ajoute a la table les colonnes presentes dans ce batch mais absentes
@@ -147,7 +159,7 @@ class SQLLoader:
     )
     def _replace_table_with_retry(self, df: pd.DataFrame, table_name: str) -> None:
         with self.engine.begin() as conn:
-            df.to_sql(table_name, conn, if_exists="replace", index=False, chunksize=5000, method="multi")
+            df.to_sql(table_name, conn, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
         logger.info(f"Table '{table_name}' remplacee ({len(df)} lignes).")
 
     @retry(
@@ -169,7 +181,7 @@ class SQLLoader:
 
             if not table_exists:
                 logger.info(f"Table '{table_name}' inexistante. Creation automatique...")
-                df.to_sql(table_name, conn, if_exists="append", index=False, chunksize=5000, method="multi")
+                df.to_sql(table_name, conn, if_exists="append", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
                 if primary_key in df.columns:
                     self._ensure_primary_key(conn, table_name, primary_key)
                 logger.info(f"Table '{table_name}' creee ({len(df)} lignes).")
@@ -177,7 +189,7 @@ class SQLLoader:
                 self._sync_columns(conn, inspector, table_name, df)
 
                 staging_table = f"_stg_{table_name}"
-                df.to_sql(staging_table, conn, if_exists="replace", index=False, chunksize=5000, method="multi")
+                df.to_sql(staging_table, conn, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
 
                 columns = list(df.columns)
                 col_list = ", ".join([f"`{col}`" for col in columns])
