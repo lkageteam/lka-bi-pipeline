@@ -77,7 +77,13 @@ jobs:
         run: |
           ARGS=""
           if [ -n "$FLOWS_INPUT" ]; then
-            ARGS="--flows $FLOWS_INPUT"
+            # FLOWS_INPUT est fourni virgule-separe (ex: "a,b,c") depuis
+            # workflow_dispatch, mais argparse --flows (nargs="*") attend des
+            # arguments espace-separes - sans cette conversion, tout le
+            # contenu arrive comme un seul token qui ne matche aucun flow.name
+            # (bug reel observe : run 28653323736, "0 flux" traites malgre
+            # flows="vente_sim,dtc_activation,zotcheze,maj,mtn_hype" fourni).
+            ARGS="--flows $(echo "$FLOWS_INPUT" | tr ',' ' ')"
           fi
           if [ "$DRY_RUN_INPUT" = "true" ]; then
             ARGS="$ARGS --dry-run"
