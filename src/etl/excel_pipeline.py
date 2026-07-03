@@ -55,7 +55,7 @@ class ExcelPipeline:
 
         target_flows = [f for f in self.flows if not flow_names or f.name in flow_names]
         available = {f["name"]: f for f in self.drive.list_files()}
-        logger.info(f"{len(available)} fichier(s) dans le dossier Drive.")
+        logger.info(f"{len(available)} fichier(s) dans le dossier Drive: {sorted(available.keys())}")
 
         if not dry_run:
             self.loader.connect()
