@@ -103,9 +103,17 @@ class DataTransformer:
         return df
 
     def _normalize_badges(self, df: pd.DataFrame) -> pd.DataFrame:
-        """Fusionne les colonnes de badge mal orthographiees (numeroBadge/numeroBagde/...)."""
+        """
+        Fusionne les colonnes de badge mal orthographiees (numeroBadge/
+        numeroBagde/...) - utile pour les flux CSV legacy avec plusieurs
+        variantes de noms de colonnes dans le meme fichier.
+        Sur les flux Mongo (source unique, deja propre : 'userInfo.numeroBadge'),
+        il n'y a qu'UNE seule colonne correspondante - dans ce cas, ne pas la
+        renommer en 'badge_unifie' (bug reel observe : le dump legacy attend
+        'userInfo_numeroBadge' tel quel, pas 'badge_unifie').
+        """
         badge_cols = [c for c in df.columns if BADGE_PATTERN.search(c)]
-        if not badge_cols:
+        if len(badge_cols) <= 1:
             return df
 
         logger.info(f"Colonnes de badge fusionnees: {badge_cols}")

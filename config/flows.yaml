@@ -93,7 +93,9 @@ flows:
     # CORRECTION (2026-07-03) : base BRAND_SOLDIER_ACTIVITIES (pas TSA_ACTIVITIES),
     # confirme par Brand_ambasador_dataload_lka2.0.R (dbname="BRAND_SOLDIER_ACTIVITIES").
     target_database: brand_soldier_activities
-    target_table: VENTE_SIM
+    # CORRECTION (2026-07-03) : casse exacte du dump brand_soldier_activities
+    # (lower_case_table_names=0 sur ce serveur -> la casse compte).
+    target_table: vente_sim
     primary_key: X_id
     rename_id_to: X_id
     add_date_time_split: true
@@ -128,8 +130,9 @@ flows:
     type_filter: bs-dtc-activation
     # CORRECTION (2026-07-03) : base BRAND_SOLDIER_ACTIVITIES (pas TSA_ACTIVITIES).
     target_database: brand_soldier_activities
-    # Orthographe conservee volontairement (table legacy DTC_EXISITING)
-    target_table: DTC_EXISITING
+    # CORRECTION (2026-07-03) : casse+orthographe exactes du dump (dtc_exisiting,
+    # pas DTC_EXISITING - lower_case_table_names=0 sur ce serveur).
+    target_table: dtc_exisiting
     primary_key: X_id
     rename_id_to: X_id
     add_date_time_split: true
@@ -158,7 +161,9 @@ flows:
     # Aucune table legacy connue pour ce flux, mais meme famille metier
     # (Brand Ambassador) que vente_sim/dtc_activation -> meme base.
     target_database: brand_soldier_activities
-    target_table: ZOTCHEZE
+    # CORRECTION (2026-07-03) : minuscule par coherence avec les autres
+    # tables de cette base (lower_case_table_names=0 sur ce serveur).
+    target_table: zotcheze
     primary_key: X_id
     rename_id_to: X_id
     add_date_time_split: true
@@ -180,3 +185,68 @@ flows:
       region: 1
       typeBa: 1
       userInfo.superviseurIdUnique: 1
+
+  # ayoba volontairement exclu pour l'instant (a la demande de l'utilisateur,
+  # 2026-07-03) - source bareports/bs-ayoba deja identifiee si besoin de le
+  # rajouter plus tard, cf. historique des flux ci-dessus pour le pattern.
+
+  - name: maj
+    # Ajoute le 2026-07-03 : manquait. Source Mongo = bareports/bs-update
+    # ('MAJ' = Mise A Jour = 'update'). Champs disponibles plus pauvres
+    # que ayoba/vente_sim (pas de sous-document userInfo aussi riche cote
+    # deduplication) - le referent Gerrish devra confirmer si les colonnes
+    # legacy 'Numero_Badge'/'Username_BA'/'Contact_abonne' correspondent
+    # exactement a ces champs Mongo ou necessitent un mapping different.
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-update
+    target_database: brand_soldier_activities
+    target_table: maj
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    dedup_key: numClient
+    phone_min_length: 8
+    projection:
+      agent: 1
+      agentId: 1
+      city: 1
+      comment: 1
+      createdAt: 1
+      numClient: 1
+      region: 1
+      userInfo.idUnique: 1
+      userInfo.numeroBadge: 1
+      userInfo.superviseurIdUnique: 1
+
+  - name: mtn_hype
+    # Ajoute le 2026-07-03 : manquait. Source = bareports/bs-hype (2.5M
+    # docs, largement plus gros volume que la collection separee 'hypepos'
+    # utilisee jusqu'ici pour un flux different) - coherent avec le choix
+    # deja fait pour vente_sim/dtc_activation/ayoba/maj (tous sourced
+    # depuis bareports, pas les petites collections dediees).
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-hype
+    target_database: brand_soldier_activities
+    target_table: mtn_hype
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    badge_merge: true
+    dedup_key: numClient
+    phone_min_length: 8
+    projection:
+      userInfo.idUnique: 1
+      userInfo.numeroBadge: 1
+      userInfo.superviseurIdUnique: 1
+      createdAt: 1
+      numClient: 1
+      forfait: 1
+      montant: 1
+      region: 1
+      city: 1

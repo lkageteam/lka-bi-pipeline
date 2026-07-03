@@ -26,6 +26,21 @@ def test_flattens_nested_fields_with_prefix():
     assert df.iloc[0]["userInfo_firstName"] == "Ama"
 
 
+def test_single_badge_column_kept_as_is_not_renamed():
+    """
+    Bug reel : un flux Mongo n'a qu'une seule colonne badge propre
+    (userInfo.numeroBadge, pas de typo a fusionner) - elle ne doit PAS
+    etre renommee en 'badge_unifie' (le schema legacy attend
+    'userInfo_numeroBadge' tel quel).
+    """
+    data = [{"_id": "1", "userInfo": {"numeroBadge": "B1"}, "createdAt": "2025-01-01T00:00:00Z"}]
+    flow = make_flow(badge_merge=True)
+    df = DataTransformer().transform_flow(data, flow)
+    assert "userInfo_numeroBadge" in df.columns
+    assert "badge_unifie" not in df.columns
+    assert df.iloc[0]["userInfo_numeroBadge"] == "B1"
+
+
 def test_badge_merge_consolidates_typo_columns():
     data = [
         {"_id": "1", "numeroBadge": "B1", "numeroBagde": None, "createdAt": "2025-01-01T00:00:00Z"},
