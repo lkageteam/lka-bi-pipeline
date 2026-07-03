@@ -96,10 +96,16 @@ excel_flows:
     target_database: brand_soldier_activities
     target_table: kpi targets
 
+  - name: bs_supervisor_list
+    # Fichier deja present dans le Drive : 'Supervisor_list.xlsx'
+    # (legacy : "SUPERVISEUR BA LKA.xlsx", renomme depuis).
+    match: Supervisor_list
+    target_database: brand_soldier_activities
+    target_table: supervisor_list
+
   # Tables brand_soldier_activities identifiees dans le dump mais dont le
   # fichier source n'est PAS encore dans le Drive (2026-07-03) - en attente
   # de depot par l'utilisateur avant de pouvoir les activer :
-  #   - supervisor_list   (legacy: "SUPERVISEUR BA LKA.xlsx")
   #   - period_data       (legacy: "Date.xlsx" - COLLISION de nom avec
   #                         tsa_date, qui utilise aussi "Date.xlsx" cote
   #                         legacy. Le fichier Drive devra etre renomme
