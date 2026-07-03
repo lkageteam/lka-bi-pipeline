@@ -1,60 +1,122 @@
 # Tables alimentees depuis des fichiers Excel deposes dans le dossier
 # Google Drive partage (pas via MongoDB). Chaque flux : le fichier est
-# identifie par un motif de nom (find_by_name, insensible a la casse), pas
-# un nom exact, pour tolerer les variations (dates dans le nom, versions...).
+# identifie par le nom exact du fichier (sans extension, insensible a la
+# casse) - PAS un motif flou. Convention confirmee sur les fichiers deja
+# presents dans le Drive : chaque fichier est nomme exactement comme sa
+# table cible (ex: 'tsa_numenclature.xlsx' -> table 'tsa_numenclature').
+# Un match par sous-chaine a deja cree une collision reelle (2026-07-03) :
+# le motif 'numenclature' matchait a la fois 'tsa_numenclature.xlsx' et
+# 'Numenclature.xlsx' (fichier brand_soldier_activities different) - cf.
+# DriveClient.find_by_name.
 #
-# match: motif recherche dans le nom du fichier Drive
+# match: nom exact du fichier Drive, sans extension
 # sheet: nom/index de la feuille Excel (0 = premiere feuille par defaut)
 # target_table / target_database: destination MySQL (overwrite complet a
 #   chaque run, comme le faisaient les scripts R legacy - ce sont des
 #   referentiels statiques, pas des flux transactionnels a upserter).
-#
-# Cible : tsa_activities (isole des bases legacy, meme decision que pour les
-# flux Mongo - cf. flows.yaml).
 
 excel_flows:
 
+  # --- tsa_activities ------------------------------------------------------
+
   - name: tsa_numenclature
-    match: numenclature
+    match: tsa_numenclature
     target_database: tsa_activities
     target_table: tsa_numenclature
 
   - name: tsa_date
-    match: date
+    # Pas encore depose dans le Drive (2026-07-03) - nom exact attendu :
+    # 'tsa_date.xlsx'.
+    match: tsa_date
     target_database: tsa_activities
     target_table: tsa_date
 
   - name: tsa_kiosk_data
-    match: kiosk
+    match: tsa_kiosk_data
     target_database: tsa_activities
     target_table: tsa_kiosk_data
 
   - name: newadd
+    # Pas encore depose dans le Drive (2026-07-03) - nom exact attendu :
+    # 'newadd.xlsx'. ATTENTION : brand_soldier_activities a AUSSI une table
+    # newadd avec une structure differente (colonnes par date) - le fichier
+    # Drive correspondant doit avoir un nom DIFFERENT de 'newadd.xlsx' pour
+    # eviter toute ambiguite (ex: 'newadd_brand_soldier.xlsx'), a confirmer
+    # avec l'utilisateur avant upload.
     match: newadd
     target_database: tsa_activities
     target_table: newadd
 
   - name: tsa_rga30_target
-    match: rga30
+    match: tsa_rga30_target
     target_database: tsa_activities
     target_table: tsa_rga30_target
 
   - name: tsa_rgb30_target
-    match: rgb30_target
+    match: tsa_rgb30_target
     target_database: tsa_activities
     target_table: tsa_rgb30_target
 
   - name: tsa_rgb30_client_data
-    match: rgb30_client
+    match: tsa_rgb30_client_data
     target_database: tsa_activities
     target_table: tsa_rgb30_client_data
 
   - name: tsa_sectorisation
-    match: sectorisation
+    match: tsa_sectorisation
     target_database: tsa_activities
     target_table: tsa_sectorisation
 
   - name: value_share_pos
-    match: value_share
+    # Pas encore depose dans le Drive (2026-07-03) - nom exact attendu :
+    # 'value_share_pos.xlsx'.
+    match: value_share_pos
     target_database: tsa_activities
     target_table: value_share_pos
+
+  # --- brand_soldier_activities ---------------------------------------------
+  # Source : Brand_ambasador_dataload_lka2.0.R (dbname="BRAND_SOLDIER_ACTIVITIES").
+
+  - name: bs_numenclature
+    # Fichier deja present dans le Drive : 'Numenclature.xlsx'
+    # (legacy : "BASE BA LKA.xlsx", renomme depuis).
+    match: Numenclature
+    target_database: brand_soldier_activities
+    target_table: numenclature
+
+  - name: bs_kpi_targets
+    # Fichier deja present dans le Drive : 'KPI Targets.xlsx'.
+    # CORRECTION : le dump brand_soldier_activities contient DEUX tables
+    # proches ('kpi targets' et 'kpi_targets') - la seconde vient d'un bug
+    # du script R legacy (il ecrivait 'GrossAddTargetData', une variable
+    # jamais chargee dans le script -> table probablement obsolete/corrompue).
+    # Seule 'kpi targets' (avec espace, alimentee par KPI_Targets_Data) est
+    # reconstruite ici.
+    match: KPI Targets
+    target_database: brand_soldier_activities
+    target_table: kpi targets
+
+  # Tables brand_soldier_activities identifiees dans le dump mais dont le
+  # fichier source n'est PAS encore dans le Drive (2026-07-03) - en attente
+  # de depot par l'utilisateur avant de pouvoir les activer :
+  #   - supervisor_list   (legacy: "SUPERVISEUR BA LKA.xlsx")
+  #   - period_data       (legacy: "Date.xlsx" - COLLISION de nom avec
+  #                         tsa_date, qui utilise aussi "Date.xlsx" cote
+  #                         legacy. Le fichier Drive devra etre renomme
+  #                         distinctement, ex: 'period_data.xlsx', avant
+  #                         d'ajouter ce flux.)
+  #   - newadd (variante brand_soldier, structure par colonnes de date -
+  #     legacy: dossier "Valide By user\*.xlsx", plusieurs fichiers combines
+  #     par rbind ; le pipeline actuel ne gere qu'un seul fichier par flux,
+  #     a etendre si le format reel confirme plusieurs fichiers)
+  #   - snd_valid  (legacy: "Load S&D validated data.R", dossier
+  #     "S&D_VALID\*.xlsx", PLUSIEURS fichiers combines par rbind - meme
+  #     limitation que newadd ci-dessus, le pipeline actuel ne gere qu'un
+  #     seul fichier par flux)
+  #
+  # Tables presentes dans le dump SANS source identifiee dans aucun script R
+  # legacy (ni Excel ni Mongo) - origine inconnue, a confirmer avec
+  # l'utilisateur avant de les reconstruire :
+  #   - global_hype
+  #   - grossaddtarget
+  #   - sdvalid (probable doublon/version obsolete de snd_valid)

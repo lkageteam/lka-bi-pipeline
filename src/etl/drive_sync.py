@@ -91,10 +91,21 @@ class DriveClient:
 
     def find_by_name(self, name_contains: str) -> Optional[Dict]:
         """
-        Retourne le fichier le plus recemment modifie dont le nom contient
-        `name_contains` (insensible a la casse), ou None si aucun match.
+        Retourne le fichier dont le nom (sans extension) correspond
+        EXACTEMENT a `name_contains` (insensible a la casse).
+        Convention observee dans le dossier Drive : chaque fichier est nomme
+        exactement comme la table cible (ex: 'tsa_numenclature.xlsx' ->
+        table 'tsa_numenclature'). Un match par sous-chaine ('in') creait
+        une collision reelle : le motif 'numenclature' matchait a la fois
+        'tsa_numenclature.xlsx' (base tsa_activities) et 'Numenclature.xlsx'
+        (base brand_soldier_activities, fichier different) - selectionnant
+        silencieusement le mauvais fichier selon la date de modification.
         """
-        matches = [f for f in self.list_files() if name_contains.lower() in f["name"].lower()]
+        target = name_contains.strip().lower()
+        matches = [
+            f for f in self.list_files()
+            if os.path.splitext(f["name"])[0].strip().lower() == target
+        ]
         if not matches:
             return None
         return max(matches, key=lambda f: f["modifiedTime"])

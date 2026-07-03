@@ -155,7 +155,7 @@ class SQLLoader:
 
         self._load_data_with_retry(df, table_name, primary_key, database)
 
-    def replace_table(self, df: pd.DataFrame, table_name: str) -> None:
+    def replace_table(self, df: pd.DataFrame, table_name: str, database: Optional[str] = None) -> None:
         """
         Remplacement complet d'une table (DROP+CREATE), pour les
         referentiels statiques (Excel) ou l'historique n'a pas de sens a
@@ -169,7 +169,7 @@ class SQLLoader:
             self.connect()
         df.columns = [str(c).replace(".", "_").replace(" ", "_").replace("-", "_") for c in df.columns]
         df = self._prepare_dataframe_for_sql(df)
-        self._replace_table_with_retry(df, table_name)
+        self._replace_table_with_retry(df, table_name, database)
 
     @retry(
         stop=stop_after_attempt(8),
@@ -177,10 +177,12 @@ class SQLLoader:
         retry=retry_if_exception_type((OperationalError, DBAPIError)),
         reraise=True,
     )
-    def _replace_table_with_retry(self, df: pd.DataFrame, table_name: str) -> None:
+    def _replace_table_with_retry(self, df: pd.DataFrame, table_name: str, database: Optional[str] = None) -> None:
         with self.engine.begin() as conn:
-            df.to_sql(table_name, conn, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
-        logger.info(f"Table '{table_name}' remplacee ({len(df)} lignes).")
+            if database:
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{database}` CHARACTER SET utf8mb4"))
+            df.to_sql(table_name, conn, schema=database, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
+        logger.info(f"Table '{(database + '.' if database else '')}{table_name}' remplacee ({len(df)} lignes).")
 
     @retry(
         stop=stop_after_attempt(8),

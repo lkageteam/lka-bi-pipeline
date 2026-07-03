@@ -82,7 +82,7 @@ class ExcelPipeline:
                     if dry_run:
                         logger.info(f"[DRY RUN][{flow.name}] fichier='{match['name']}' {len(df)} lignes | colonnes: {list(df.columns)}")
                     else:
-                        self.loader.replace_table(df, flow.target_table)
+                        self.loader.replace_table(df, flow.target_table, database=flow.target_database)
 
                     processed += 1
                 except Exception as e:
