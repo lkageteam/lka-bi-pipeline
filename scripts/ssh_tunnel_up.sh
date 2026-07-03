@@ -14,7 +14,18 @@ sudo apt-get update -qq
 sudo apt-get install -y -qq sshpass
 
 # -N: pas de commande distante, juste le forward. -f: en arriere-plan.
-# StrictHostKeyChecking=no : runner ephemere, pas de known_hosts a gerer.
+# StrictHostKeyChecking=no + UserKnownHostsFile=/dev/null : runner
+# ephemere, pas de known_hosts a gerer. UserKnownHostsFile=/dev/null est
+# INDISPENSABLE en plus de StrictHostKeyChecking=no : bug reel observe
+# (2026-07-03, runs 28665241886/28665326438) - la cle hote presentee par
+# le serveur varie d'une tentative a l'autre au sein du MEME job (routage
+# reseau instable cote fournisseur, deja documente). Sans
+# UserKnownHostsFile=/dev/null, la 1ere tentative ecrit une cle dans
+# known_hosts et la tentative suivante, recevant une cle differente, est
+# categoriquement refusee ("REMOTE HOST IDENTIFICATION HAS CHANGED") meme
+# avec StrictHostKeyChecking=no - ce flag ne desactive que le prompt pour
+# un HOTE INCONNU, pas le refus pour un hote deja connu dont la cle a
+# change.
 #
 # L'authentification SSH elle-meme est intermittente sur ce serveur (deja
 # observe lors du diagnostic reseau initial : ~30-40% d'echecs meme avec le
@@ -24,6 +35,7 @@ SSH_CONNECTED=0
 for i in 1 2 3 4 5; do
   if sshpass -p "$SSH_PASS" ssh -N -f \
     -o StrictHostKeyChecking=no \
+    -o UserKnownHostsFile=/dev/null \
     -o ConnectTimeout=15 \
     -o ServerAliveInterval=15 \
     -o ServerAliveCountMax=3 \
