@@ -16,7 +16,7 @@ class FlowConfig:
     name: str
     source_collection: str
     target_table: str
-    target_database: str = "lka_bi_dw"
+    target_database: str = "tsa_activities"
     primary_key: str = "_id"
     type_field: Optional[str] = None
     type_filter: Optional[str] = None

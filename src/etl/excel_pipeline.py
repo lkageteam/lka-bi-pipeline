@@ -26,7 +26,7 @@ class ExcelFlowConfig:
     name: str
     match: str
     target_table: str
-    target_database: str = "lka_bi_dw"
+    target_database: str = "tsa_activities"
     sheet: object = 0
 
 

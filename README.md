@@ -18,10 +18,10 @@ Le tunnel WireGuard reste en place et disponible (`use_tunnel=true` dans le work
 
 ## Connectivite MySQL
 
-Connexion directe a `75.119.154.255:3306` par defaut (fiable, cf. §Statut). Un tunnel WireGuard reste disponible en secours :
+Connexion directe a `75.119.154.255:3306` par defaut (fiable, cf. §Statut). Deux filets de secours disponibles si elle redevient instable :
 
-- Local : importer le fichier de config WireGuard recu separement, puis utiliser `MYSQL_HOST=10.66.66.1`.
-- CI (GitHub Actions) : lancer le workflow avec l'input `use_tunnel=true` pour monter le tunnel (`scripts/wireguard_up.sh`, peer dedie) au lieu de la connexion directe.
+- Tunnel WireGuard : local, importer le fichier de config recu separement puis `MYSQL_HOST=10.66.66.1` ; en CI, `connection_mode=wireguard`.
+- Tunnel SSH : en CI, `connection_mode=ssh_tunnel` (`scripts/ssh_tunnel_up.sh`) - a utilise avec succes le 2026-07-02 quand direct et WireGuard etaient tous les deux bloques depuis les runners GitHub Actions.
 
 ## Lancer en local
 
@@ -35,17 +35,19 @@ python -m src.etl.pipeline                                 # execution reelle
 
 ## Flux actuellement implementes
 
-5 flux en confiance forte (confirmes par requetes Compass reelles du referent metier, en attente de validation finale des noms de table par Gerrish) :
+Base cible : **`tsa_activities`** (meme nom que la base legacy de reference, organisation par projet - cf. `tsa_activities_structure.sql` fourni par l'utilisateur). Schema (noms de table/colonnes) valide colonne-par-colonne contre ce dump le 2026-07-03.
 
-| Flux | Source | Table cible |
+| Flux | Source Mongo | Table cible |
 |---|---|---|
-| `tsa_reports` | `reports` | `lka_bi_dw.TSA_Reports` |
-| `tsa_activities` | `activities` | `lka_bi_dw.TSA_Deployments` (nom provisoire) |
-| `vente_sim` | `bareports` (`type=bs-vente-sim`) | `lka_bi_dw.VENTE_SIM` |
-| `dtc_activation` | `bareports` (`type=bs-dtc-activation`) | `lka_bi_dw.DTC_EXISITING` |
-| `zotcheze` | `bareports` (`type=bs-zotcheze`) | `lka_bi_dw.ZOTCHEZE` (nouvelle table) |
+| `tsa_reports` | `reports` (export complet) | `tsa_activities.tsa_reports` |
+| `tsa_deployments` | `pos` (export complet - **pas** `activities`, corrige le 2026-07-02) | `tsa_activities.tsa_deployments` |
+| `vente_sim` | `bareports` (`type=bs-vente-sim`) | `tsa_activities.VENTE_SIM` |
+| `dtc_activation` | `bareports` (`type=bs-dtc-activation`) | `tsa_activities.DTC_EXISITING` |
+| `zotcheze` | `bareports` (`type=bs-zotcheze`) | `tsa_activities.ZOTCHEZE` (nouvelle table, aucun equivalent legacy) |
 
-D'autres flux (voir le fichier de collecte `analyses/handoff_gerrish_template.xlsx` du repo `bi-gerrish`) pourront etre ajoutes a `config/flows.yaml` une fois confirmes.
+`tsa_reports`/`tsa_deployments`/`vente_sim`/`dtc_activation` ajoutent automatiquement toute colonne nouvelle rencontree dans un batch ulterieur (schema drift, cf. `SQLLoader._sync_columns`) et forcent le type TEXT pour les colonnes texte/ambigues (`SQLLoader._text_dtype_map`) afin d'eviter les erreurs de troncature MySQL.
+
+D'autres flux (voir le fichier de collecte `analyses/handoff_gerrish_template.xlsx` du repo `bi-gerrish`) pourront etre ajoutes a `config/flows.yaml` une fois confirmes. Les tables Excel (`tsa_numenclature`, `tsa_date`, etc.) sont gerees separement via `config/excel_flows.yaml` / `.github/workflows/excel-sync.yml` (source : Google Drive).
 
 ## Tests
 

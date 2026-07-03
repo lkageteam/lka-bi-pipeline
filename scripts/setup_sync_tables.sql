@@ -1,7 +1,7 @@
-CREATE DATABASE IF NOT EXISTS lka_bi_dw
+CREATE DATABASE IF NOT EXISTS tsa_activities
   CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-USE lka_bi_dw;
+USE tsa_activities;
 
 CREATE TABLE IF NOT EXISTS sync_runs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,

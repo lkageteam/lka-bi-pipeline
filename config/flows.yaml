@@ -14,7 +14,7 @@ flows:
 
   - name: tsa_reports
     source_collection: reports
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_reports
     primary_key: X_id
     rename_id_to: X_id
@@ -73,7 +73,7 @@ flows:
     # verification directe sur Mongo : agentInfo est bien peuple nativement
     # sur les documents pos, et le champ `type` existe (285547/330886 docs).
     source_collection: pos
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_deployments
     primary_key: X_id
     rename_id_to: X_id
@@ -90,7 +90,7 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-vente-sim
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: VENTE_SIM
     primary_key: X_id
     rename_id_to: X_id
@@ -124,7 +124,7 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-dtc-activation
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     # Orthographe conservee volontairement (table legacy DTC_EXISITING)
     target_table: DTC_EXISITING
     primary_key: X_id
@@ -152,7 +152,7 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-zotcheze
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     # Aucune table legacy connue pour ce flux - nouvelle table.
     target_table: ZOTCHEZE
     primary_key: X_id

@@ -9,52 +9,52 @@
 #   chaque run, comme le faisaient les scripts R legacy - ce sont des
 #   referentiels statiques, pas des flux transactionnels a upserter).
 #
-# Cible : lka_bi_dw (isole des bases legacy, meme decision que pour les
+# Cible : tsa_activities (isole des bases legacy, meme decision que pour les
 # flux Mongo - cf. flows.yaml).
 
 excel_flows:
 
   - name: tsa_numenclature
     match: numenclature
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_numenclature
 
   - name: tsa_date
     match: date
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_date
 
   - name: tsa_kiosk_data
     match: kiosk
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_kiosk_data
 
   - name: newadd
     match: newadd
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: newadd
 
   - name: tsa_rga30_target
     match: rga30
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_rga30_target
 
   - name: tsa_rgb30_target
     match: rgb30_target
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_rgb30_target
 
   - name: tsa_rgb30_client_data
     match: rgb30_client
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_rgb30_client_data
 
   - name: tsa_sectorisation
     match: sectorisation
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: tsa_sectorisation
 
   - name: value_share_pos
     match: value_share
-    target_database: lka_bi_dw
+    target_database: tsa_activities
     target_table: value_share_pos

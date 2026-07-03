@@ -22,7 +22,7 @@ class SQLLoader:
     """
 
     def __init__(self, connection_string: Optional[str] = None):
-        db_name = os.getenv("MYSQL_DATABASE", "lka_bi_dw")
+        db_name = os.getenv("MYSQL_DATABASE", "tsa_activities")
         server = os.getenv("MYSQL_HOST", "10.66.66.1")
         port = os.getenv("MYSQL_PORT", "3306")
         user = os.getenv("MYSQL_USER", "root")
