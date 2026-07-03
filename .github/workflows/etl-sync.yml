@@ -90,6 +90,16 @@ jobs:
           fi
           python -m src.etl.pipeline $ARGS
 
+      - name: Synchroniser newadd (source lka_perf_commissions, meme serveur)
+        if: ${{ github.event.inputs.dry_run != 'true' }}
+        env:
+          MYSQL_HOST: ${{ github.event.inputs.connection_mode == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (github.event.inputs.connection_mode == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
+          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
+          MYSQL_USER: ${{ vars.MYSQL_USER }}
+          MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
+          MYSQL_DATABASE: ${{ vars.MYSQL_DATABASE }}
+        run: python -m src.etl.sql_source
+
       - name: Fermer le tunnel WireGuard
         if: ${{ always() && github.event.inputs.connection_mode == 'wireguard' }}
         run: sudo wg-quick down wg0 || true
