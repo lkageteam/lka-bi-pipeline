@@ -72,19 +72,20 @@ class SQLLoader:
                     df[col] = df[col].dt.tz_localize(None)
         return df
 
-    def _ensure_primary_key(self, conn, table_name: str, primary_key: str):
+    def _ensure_primary_key(self, conn, qualified_table: str, primary_key: str):
+        """`qualified_table` est deja entoure de backticks (ex: q(table_name))."""
         try:
             try:
-                conn.execute(text(f"ALTER TABLE `{table_name}` MODIFY COLUMN `{primary_key}` VARCHAR(191)"))
+                conn.execute(text(f"ALTER TABLE {qualified_table} MODIFY COLUMN `{primary_key}` VARCHAR(191)"))
             except Exception:
                 pass
-            conn.execute(text(f"ALTER TABLE `{table_name}` ADD PRIMARY KEY (`{primary_key}`)"))
-            logger.info(f"Cle primaire ajoutee sur `{table_name}`.")
+            conn.execute(text(f"ALTER TABLE {qualified_table} ADD PRIMARY KEY (`{primary_key}`)"))
+            logger.info(f"Cle primaire ajoutee sur {qualified_table}.")
         except Exception as e:
             if "1068" in str(e) or "already exists" in str(e):
                 pass
             else:
-                logger.warning(f"Note sur la PK de `{table_name}`: {e}")
+                logger.warning(f"Note sur la PK de {qualified_table}: {e}")
 
     def _text_dtype_map(self, df: pd.DataFrame) -> dict:
         """
@@ -108,7 +109,7 @@ class SQLLoader:
             if pd.api.types.is_string_dtype(df[col]) or df[col].isna().all()
         }
 
-    def _sync_columns(self, conn, inspector, table_name: str, df: pd.DataFrame) -> None:
+    def _sync_columns(self, conn, inspector, table_name: str, df: pd.DataFrame, database: Optional[str] = None) -> None:
         """
         Ajoute a la table les colonnes presentes dans ce batch mais absentes
         de la table (schema drift). Necessaire pour les flux en export
@@ -118,19 +119,27 @@ class SQLLoader:
         colonnes nouvelles peuvent apparaitre dans un batch ulterieur au
         premier (qui a defini le schema initial de la table).
         """
-        existing_cols = {c["name"] for c in inspector.get_columns(table_name)}
+        qualified = f"`{database}`.`{table_name}`" if database else f"`{table_name}`"
+        existing_cols = {c["name"] for c in inspector.get_columns(table_name, schema=database)}
         new_cols = [c for c in df.columns if c not in existing_cols]
         for col in new_cols:
             try:
-                conn.execute(text(f"ALTER TABLE `{table_name}` ADD COLUMN `{col}` TEXT NULL"))
-                logger.info(f"Colonne `{col}` ajoutee sur `{table_name}` (schema drift).")
+                conn.execute(text(f"ALTER TABLE {qualified} ADD COLUMN `{col}` TEXT NULL"))
+                logger.info(f"Colonne `{col}` ajoutee sur {qualified} (schema drift).")
             except Exception as e:
                 if "1060" in str(e) or "Duplicate column" in str(e):
                     pass
                 else:
                     raise
 
-    def load_data(self, df: pd.DataFrame, table_name: str, primary_key: str = "_id") -> None:
+    def load_data(self, df: pd.DataFrame, table_name: str, primary_key: str = "_id", database: Optional[str] = None) -> None:
+        """
+        `database` : base cible pour CE flux, independante de la base par
+        defaut de la chaine de connexion (organisation par projet - une
+        base par projet metier, ex. tsa_activities vs
+        brand_soldier_activities - le user root a acces a toutes les bases
+        du serveur, donc pas besoin de rouvrir une connexion par base).
+        """
         if df.empty:
             logger.warning(f"Aucune donnee a charger pour '{table_name}'.")
             return
@@ -144,7 +153,7 @@ class SQLLoader:
         if primary_key not in df.columns and "_id" in df.columns:
             primary_key = "_id"
 
-        self._load_data_with_retry(df, table_name, primary_key)
+        self._load_data_with_retry(df, table_name, primary_key, database)
 
     def replace_table(self, df: pd.DataFrame, table_name: str) -> None:
         """
@@ -179,28 +188,34 @@ class SQLLoader:
         retry=retry_if_exception_type((OperationalError, DBAPIError)),
         reraise=True,
     )
-    def _load_data_with_retry(self, df: pd.DataFrame, table_name: str, primary_key: str) -> None:
+    def _load_data_with_retry(self, df: pd.DataFrame, table_name: str, primary_key: str, database: Optional[str] = None) -> None:
         """
         Chaque appel de load_data() ouvre potentiellement une NOUVELLE
         connexion TCP (le pool peut etre vide/recycle) - le retry sur
         SQLLoader.connect() seul ne protege donc pas cette etape. Meme
         logique de retry ici, reproductible independamment par flux/batch.
         """
+        def q(name: str) -> str:
+            return f"`{database}`.`{name}`" if database else f"`{name}`"
+
         with self.engine.begin() as conn:
+            if database:
+                conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{database}` CHARACTER SET utf8mb4"))
+
             inspector = inspect(self.engine)
-            table_exists = inspector.has_table(table_name)
+            table_exists = inspector.has_table(table_name, schema=database)
 
             if not table_exists:
-                logger.info(f"Table '{table_name}' inexistante. Creation automatique...")
-                df.to_sql(table_name, conn, if_exists="append", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
+                logger.info(f"Table '{q(table_name)}' inexistante. Creation automatique...")
+                df.to_sql(table_name, conn, schema=database, if_exists="append", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
                 if primary_key in df.columns:
-                    self._ensure_primary_key(conn, table_name, primary_key)
-                logger.info(f"Table '{table_name}' creee ({len(df)} lignes).")
+                    self._ensure_primary_key(conn, q(table_name), primary_key)
+                logger.info(f"Table '{q(table_name)}' creee ({len(df)} lignes).")
             else:
-                self._sync_columns(conn, inspector, table_name, df)
+                self._sync_columns(conn, inspector, table_name, df, database)
 
                 staging_table = f"_stg_{table_name}"
-                df.to_sql(staging_table, conn, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
+                df.to_sql(staging_table, conn, schema=database, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
 
                 columns = list(df.columns)
                 col_list = ", ".join([f"`{col}`" for col in columns])
@@ -209,17 +224,17 @@ class SQLLoader:
 
                 if update_clause and primary_key in df.columns:
                     conn.execute(text(f"""
-                        INSERT INTO `{table_name}` ({col_list})
-                        SELECT {col_list} FROM `{staging_table}`
+                        INSERT INTO {q(table_name)} ({col_list})
+                        SELECT {col_list} FROM {q(staging_table)}
                         ON DUPLICATE KEY UPDATE {update_clause}
                     """))
                 else:
                     conn.execute(text(f"""
-                        INSERT IGNORE INTO `{table_name}` ({col_list})
-                        SELECT {col_list} FROM `{staging_table}`
+                        INSERT IGNORE INTO {q(table_name)} ({col_list})
+                        SELECT {col_list} FROM {q(staging_table)}
                     """))
 
-                conn.execute(text(f"DROP TABLE IF EXISTS `{staging_table}`"))
+                conn.execute(text(f"DROP TABLE IF EXISTS {q(staging_table)}"))
 
     def close(self) -> None:
         if self.engine:

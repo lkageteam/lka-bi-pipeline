@@ -90,7 +90,9 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-vente-sim
-    target_database: tsa_activities
+    # CORRECTION (2026-07-03) : base BRAND_SOLDIER_ACTIVITIES (pas TSA_ACTIVITIES),
+    # confirme par Brand_ambasador_dataload_lka2.0.R (dbname="BRAND_SOLDIER_ACTIVITIES").
+    target_database: brand_soldier_activities
     target_table: VENTE_SIM
     primary_key: X_id
     rename_id_to: X_id
@@ -124,7 +126,8 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-dtc-activation
-    target_database: tsa_activities
+    # CORRECTION (2026-07-03) : base BRAND_SOLDIER_ACTIVITIES (pas TSA_ACTIVITIES).
+    target_database: brand_soldier_activities
     # Orthographe conservee volontairement (table legacy DTC_EXISITING)
     target_table: DTC_EXISITING
     primary_key: X_id
@@ -152,8 +155,9 @@ flows:
     source_collection: bareports
     type_field: type
     type_filter: bs-zotcheze
-    target_database: tsa_activities
-    # Aucune table legacy connue pour ce flux - nouvelle table.
+    # Aucune table legacy connue pour ce flux, mais meme famille metier
+    # (Brand Ambassador) que vente_sim/dtc_activation -> meme base.
+    target_database: brand_soldier_activities
     target_table: ZOTCHEZE
     primary_key: X_id
     rename_id_to: X_id

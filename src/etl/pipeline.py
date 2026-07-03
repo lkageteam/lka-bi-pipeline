@@ -140,7 +140,7 @@ class ETLPipeline:
                     if dry_run:
                         logger.info(f"[DRY RUN][{flow.name}] +{len(df)} lignes | colonnes: {list(df.columns)}")
                     else:
-                        self.loader.load_data(df, flow.target_table, primary_key=flow.primary_key)
+                        self.loader.load_data(df, flow.target_table, primary_key=flow.primary_key, database=flow.target_database)
 
                     flow_docs += len(df)
 
