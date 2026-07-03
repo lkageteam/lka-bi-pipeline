@@ -33,6 +33,22 @@ class DriveClient:
         if not self.folder_id:
             raise ValueError("GDRIVE_FOLDER_ID environment variable is not set")
 
+    def check_folder_access(self) -> Dict:
+        """
+        Verifie explicitement que le compte de service VOIT le dossier
+        lui-meme (pas seulement son contenu). Un files().list() avec un
+        filtre 'in parents' renvoie silencieusement une liste vide si le
+        compte n'a AUCUN acces au dossier - impossible de distinguer
+        "dossier vide" de "dossier invisible" sans cet appel separe.
+        """
+        try:
+            meta = self.service.files().get(
+                fileId=self.folder_id, fields="id, name, mimeType, owners"
+            ).execute()
+            return {"visible": True, "meta": meta}
+        except Exception as e:
+            return {"visible": False, "error": str(e)}
+
     def list_files(self) -> List[Dict]:
         """Liste tous les fichiers du dossier surveille (non recursif)."""
         files = []

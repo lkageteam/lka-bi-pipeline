@@ -43,6 +43,16 @@ class ExcelPipeline:
         self.loader = SQLLoader(connection_string=sql_uri)
 
     def run(self, flow_names: Optional[List[str]] = None, dry_run: bool = False) -> dict:
+        access = self.drive.check_folder_access()
+        if access["visible"]:
+            logger.info(f"Dossier Drive visible : '{access['meta'].get('name')}' (id={self.drive.folder_id}).")
+        else:
+            logger.error(
+                f"Dossier Drive INVISIBLE pour le compte de service (id={self.drive.folder_id}): "
+                f"{access['error']}. Le dossier n'a probablement pas ete partage avec ce compte, "
+                f"ou l'ID est incorrect."
+            )
+
         target_flows = [f for f in self.flows if not flow_names or f.name in flow_names]
         available = {f["name"]: f for f in self.drive.list_files()}
         logger.info(f"{len(available)} fichier(s) dans le dossier Drive.")
