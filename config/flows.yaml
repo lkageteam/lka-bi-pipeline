@@ -186,9 +186,27 @@ flows:
       typeBa: 1
       userInfo.superviseurIdUnique: 1
 
-  # ayoba volontairement exclu pour l'instant (a la demande de l'utilisateur,
-  # 2026-07-03) - source bareports/bs-ayoba deja identifiee si besoin de le
-  # rajouter plus tard, cf. historique des flux ci-dessus pour le pattern.
+  - name: ayoba
+    # Ajoute le 2026-07-06 (a la demande de l'utilisateur). CORRECTION par
+    # rapport aux autres flux BA (vente_sim/dtc_activation/zotcheze) : pas de
+    # projection restrictive ici - le dump reel de la table 'ayoba' confirme
+    # que TOUT le sous-document userInfo est aplati en colonnes (userInfo_role_*,
+    # userInfo_region_*, userInfo_superviseur*, userInfo_isBanned, etc.), pas
+    # seulement idUnique/numeroBadge/superviseurIdUnique comme pour les autres
+    # flux BA. Export complet (comme tsa_deployments), pas de projection.
+    source_collection: bareports
+    type_field: type
+    type_filter: bs-ayoba
+    target_database: brand_soldier_activities
+    target_table: ayoba
+    primary_key: X_id
+    rename_id_to: X_id
+    add_date_time_split: true
+    date_field: createdAt
+    bootstrap_start_date: "2025-01-01"
+    badge_merge: true
+    dedup_key: numClient
+    phone_min_length: 8
 
   - name: maj
     # Ajoute le 2026-07-03 : manquait. Source Mongo = bareports/bs-update
