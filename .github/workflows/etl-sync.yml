@@ -15,14 +15,18 @@ on:
         description: "Chemin de connexion MySQL a utiliser"
         required: false
         type: choice
-        default: direct
+        default: ssh_tunnel
         options:
           - direct
           - wireguard
           - ssh_tunnel
-
-# Pas de cron pour l'instant (cf. plan : premiers runs en manuel avant
-# d'activer la planification automatique).
+  schedule:
+    # Toutes les 6h. ssh_tunnel est le seul mode fiable observe depuis les
+    # runners GitHub Actions (direct/wireguard echouent totalement de facon
+    # intermittente, cf. historique) - impose ci-dessous via CONNECTION_MODE
+    # car un evenement 'schedule' n'a pas d'inputs (contrairement a
+    # workflow_dispatch), donc pas de connection_mode choisi.
+    - cron: "0 */6 * * *"
 
 concurrency:
   group: etl-sync
@@ -35,6 +39,11 @@ jobs:
     # a deja pris ~31 min a lui seul (2026-07-02). Les runs incrementaux
     # suivants seront bien plus courts (cf. sync_state).
     timeout-minutes: 90
+    env:
+      # Fallback ssh_tunnel : couvre a la fois le declenchement 'schedule'
+      # (pas d'inputs du tout) et un workflow_dispatch sans connection_mode
+      # explicite.
+      CONNECTION_MODE: ${{ github.event.inputs.connection_mode || 'ssh_tunnel' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -46,7 +55,7 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Monter le tunnel WireGuard
-        if: ${{ github.event.inputs.connection_mode == 'wireguard' }}
+        if: ${{ env.CONNECTION_MODE == 'wireguard' }}
         env:
           WG_CI_PRIVATE_KEY: ${{ secrets.WG_CI_PRIVATE_KEY }}
           WG_SERVER_PUBLIC_KEY: ${{ secrets.WG_SERVER_PUBLIC_KEY }}
@@ -55,7 +64,7 @@ jobs:
         run: bash scripts/wireguard_up.sh
 
       - name: Monter le tunnel SSH
-        if: ${{ github.event.inputs.connection_mode == 'ssh_tunnel' }}
+        if: ${{ env.CONNECTION_MODE == 'ssh_tunnel' }}
         env:
           SSH_HOST: ${{ vars.SSH_HOST }}
           SSH_USER: ${{ vars.SSH_USER }}
@@ -67,7 +76,7 @@ jobs:
         env:
           MONGO_URI: ${{ secrets.MONGO_URI }}
           MONGO_DB_NAME: ${{ vars.MONGO_DB_NAME }}
-          MYSQL_HOST: ${{ github.event.inputs.connection_mode == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (github.event.inputs.connection_mode == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
+          MYSQL_HOST: ${{ env.CONNECTION_MODE == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (env.CONNECTION_MODE == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
           MYSQL_PORT: ${{ vars.MYSQL_PORT }}
           MYSQL_USER: ${{ vars.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
@@ -93,7 +102,7 @@ jobs:
       - name: Synchroniser newadd (source lka_perf_commissions, meme serveur)
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
-          MYSQL_HOST: ${{ github.event.inputs.connection_mode == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (github.event.inputs.connection_mode == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
+          MYSQL_HOST: ${{ env.CONNECTION_MODE == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (env.CONNECTION_MODE == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
           MYSQL_PORT: ${{ vars.MYSQL_PORT }}
           MYSQL_USER: ${{ vars.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
@@ -101,9 +110,9 @@ jobs:
         run: python -m src.etl.sql_source
 
       - name: Fermer le tunnel WireGuard
-        if: ${{ always() && github.event.inputs.connection_mode == 'wireguard' }}
+        if: ${{ always() && env.CONNECTION_MODE == 'wireguard' }}
         run: sudo wg-quick down wg0 || true
 
       - name: Fermer le tunnel SSH
-        if: ${{ always() && github.event.inputs.connection_mode == 'ssh_tunnel' }}
+        if: ${{ always() && env.CONNECTION_MODE == 'ssh_tunnel' }}
         run: pkill -f "ssh -N -f" || true
