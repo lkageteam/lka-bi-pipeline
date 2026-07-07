@@ -79,12 +79,66 @@ flows:
     rename_id_to: X_id
     add_date_time_split: true
     date_field: createdAt
-    bootstrap_start_date: "2025-01-01"
-    # Pas de filtre/projection : export complet confirme par le referent
-    # (comme pos l'etait deja dans le handoff). La table brute contient les
-    # deux valeurs de `type` ('Non' et 'deployment') ; le filtre
-    # type='deployment' est applique cote vue SQL (tsa_monthly_performance),
-    # pas a l'extraction.
+    # CORRECTION (2026-07-07) : recharge depuis 2024 (au lieu de 2025-01-01)
+    # a la demande de l'utilisateur, dans le cadre de la correction ci-dessous.
+    bootstrap_start_date: "2024-01-01"
+    # CORRECTION (2026-07-07) : projection restreinte aux 50 colonnes exactes
+    # confirmees par le referent metier (liste R fournie par l'utilisateur) -
+    # avant, export complet (~130 colonnes, ~80 en trop : regionId, isVisited,
+    # createdBy_*, Date/Time, region, nomDeClient, etc.) qui rendait le modele
+    # Power BI inexploitable ("trop de colonnes/erreur de modele"). Le filtre
+    # type='deployment' reste applique cote vue SQL (tsa_monthly_performance),
+    # pas a l'extraction (la table brute garde les deux valeurs de `type`).
+    projection:
+      etsName: 1
+      posNumber: 1
+      ownerName: 1
+      ownerLastName: 1
+      longitude: 1
+      latitude: 1
+      typePos: 1
+      posAgentNumber: 1
+      posMerchantNumber: 1
+      createdAt: 1
+      agentInfo.firstName: 1
+      agentInfo.lastName: 1
+      agentInfo.email: 1
+      agentInfo.idCardNumber: 1
+      agentInfo.role.label: 1
+      agentInfo.role.sigle: 1
+      agentInfo.role._id: 1
+      agentInfo.role.__v: 1
+      agentInfo.region.label: 1
+      agentInfo.region._id: 1
+      agentInfo.region.__v: 1
+      agentInfo.region.role: 1
+      agentInfo.activate: 1
+      agentInfo.desactivate: 1
+      agentInfo.isBanned: 1
+      agentInfo.createdAt: 1
+      agentInfo.updatedAt: 1
+      agentInfo.phoneNumber: 1
+      agentInfo.idUnique: 1
+      agentInfo._id: 1
+      agentInfo.regionChoose: 1
+      agentInfo.desireRole: 1
+      agentInfo.birthdate: 1
+      agentInfo.fonction: 1
+      agentInfo.degree: 1
+      agentInfo.address: 1
+      agentInfo.idCardType: 1
+      agentInfo.gender: 1
+      agentInfo.corporateNumber: 1
+      agentInfo.__v: 1
+      type: 1
+      ownerLastNumber: 1
+      kindOfPos: 1
+      activityPeriod: 1
+      activityHour: 1
+      zone: 1
+      sector: 1
+      codeMID: 1
+      agentInfo.personel: 1
 
   - name: vente_sim
     source_collection: bareports
