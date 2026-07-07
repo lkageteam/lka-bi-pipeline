@@ -264,11 +264,18 @@ flows:
 
   - name: maj
     # Ajoute le 2026-07-03 : manquait. Source Mongo = bareports/bs-update
-    # ('MAJ' = Mise A Jour = 'update'). Champs disponibles plus pauvres
-    # que ayoba/vente_sim (pas de sous-document userInfo aussi riche cote
-    # deduplication) - le referent Gerrish devra confirmer si les colonnes
-    # legacy 'Numero_Badge'/'Username_BA'/'Contact_abonne' correspondent
-    # exactement a ces champs Mongo ou necessitent un mapping different.
+    # ('MAJ' = Mise A Jour = 'update').
+    # CORRECTION (2026-07-07) : le dump reel de 'maj' (brand_soldier_structure.sql)
+    # a des noms de colonnes COMPLETEMENT differents des noms de champs Mongo
+    # aplatis (X, Numéro_Badge, ID_Unique, Contact_abonné, Username_BA,
+    # Région, Ville, Date, Heure) - contrairement aux autres flux BA ou les
+    # noms coincident deja. Verifie sur un document Mongo reel (bs-update) :
+    # projection reduite aux seuls champs presents dans le dump (agentId,
+    # comment, userInfo.superviseurIdUnique retires - aucune colonne legacy
+    # correspondante), + rename_fields pour matcher exactement les noms de
+    # colonnes attendus. Pas d'equivalent Mongo trouve pour la colonne 'X' du
+    # dump (probable artefact R, tinyint sans source identifiee) - non
+    # reconstruite.
     source_collection: bareports
     type_field: type
     type_filter: bs-update
@@ -283,15 +290,22 @@ flows:
     phone_min_length: 8
     projection:
       agent: 1
-      agentId: 1
       city: 1
-      comment: 1
       createdAt: 1
       numClient: 1
       region: 1
       userInfo.idUnique: 1
       userInfo.numeroBadge: 1
-      userInfo.superviseurIdUnique: 1
+    rename_fields:
+      agent: Username_BA
+      city: Ville
+      numClient: Contact_abonné
+      region: Région
+      userInfo_idUnique: ID_Unique
+      userInfo_numeroBadge: Numéro_Badge
+      # Seule table BA a utiliser 'Heure' plutot que 'Time' pour le split
+      # add_date_time_split (verifie contre le dump reel).
+      Time: Heure
 
   - name: mtn_hype
     # Ajoute le 2026-07-03 : manquait. Source = bareports/bs-hype (2.5M
@@ -309,12 +323,14 @@ flows:
     add_date_time_split: true
     date_field: createdAt
     bootstrap_start_date: "2025-01-01"
-    badge_merge: true
     dedup_key: numClient
     phone_min_length: 8
+    # CORRECTION (2026-07-07) : 'userInfo.numeroBadge' retire - absent du
+    # dump reel de mtn_hype (11 colonnes exactement, pas de colonne badge
+    # pour ce flux, contrairement a vente_sim/dtc_activation/zotcheze/ayoba).
+    # badge_merge retire du meme coup (plus utile sans champ badge projete).
     projection:
       userInfo.idUnique: 1
-      userInfo.numeroBadge: 1
       userInfo.superviseurIdUnique: 1
       createdAt: 1
       numClient: 1

@@ -103,6 +103,24 @@ def test_malformed_createdAt_expression_object_is_neutralized():
     assert df["createdAt"].isna().sum() == 1
 
 
+def test_rename_fields_maps_flattened_names_to_legacy_columns():
+    """
+    Cas reel : le flux 'maj' a des noms de colonnes legacy qui ne
+    correspondent PAS aux noms de champs Mongo aplatis (ex. 'numClient' ->
+    'Contact_abonné'), contrairement aux autres flux BA.
+    """
+    data = [{"_id": "1", "numClient": "12345678", "region": "Cotonou", "createdAt": "2025-01-01T10:00:00Z"}]
+    flow = make_flow(rename_fields={"numClient": "Contact_abonné", "region": "Région", "Time": "Heure"}, add_date_time_split=True)
+    df = DataTransformer().transform_flow(data, flow)
+    assert "Contact_abonné" in df.columns
+    assert "Région" in df.columns
+    assert "Heure" in df.columns
+    assert "numClient" not in df.columns
+    assert "region" not in df.columns
+    assert "Time" not in df.columns
+    assert df.iloc[0]["Contact_abonné"] == "12345678"
+
+
 def test_case_insensitive_duplicate_columns_removed():
     data = [{"_id": "1", "Date": "2025-01-01", "date": "2025-01-01"}]
     flow = make_flow()

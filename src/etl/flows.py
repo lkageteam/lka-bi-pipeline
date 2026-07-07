@@ -28,6 +28,13 @@ class FlowConfig:
     phone_min_length: Optional[int] = None
     rename_id_to: Optional[str] = None
     add_date_time_split: bool = False
+    # Renommage de champs post-aplatissement (cle = nom Mongo aplati, ex.
+    # 'userInfo_numeroBadge' ; valeur = nom de colonne cible). Necessaire
+    # quand le nom de colonne legacy ne correspond PAS au nom de champ Mongo
+    # (ex. flux 'maj' : le champ Mongo 'numClient' doit devenir la colonne
+    # legacy 'Contact_abonné') - contrairement aux autres flux BA ou les
+    # noms Mongo aplatis coincident deja avec les noms de colonnes cibles.
+    rename_fields: Optional[Dict[str, str]] = None
 
     def mongo_query(self, since: Optional[datetime] = None) -> Dict:
         """

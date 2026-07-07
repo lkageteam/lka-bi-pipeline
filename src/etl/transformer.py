@@ -46,6 +46,9 @@ class DataTransformer:
         if flow.dedup_key:
             df = self._filter_and_deduplicate(df, flow.dedup_key, flow.phone_min_length)
 
+        if flow.rename_fields:
+            df = df.rename(columns=flow.rename_fields)
+
         # Securite : si des listes/dicts residuels subsistent (ex: tableaux),
         # les serialiser en JSON plutot que de faire echouer l'insertion SQL.
         df = self._flatten_remaining_objects(df)
