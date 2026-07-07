@@ -77,12 +77,14 @@ excel_flows:
   # --- brand_soldier_activities ---------------------------------------------
   # Source : Brand_ambasador_dataload_lka2.0.R (dbname="BRAND_SOLDIER_ACTIVITIES").
 
-  - name: bs_numenclature
-    # Fichier deja present dans le Drive : 'Numenclature.xlsx'
-    # (legacy : "BASE BA LKA.xlsx", renomme depuis).
-    match: Numenclature
-    target_database: brand_soldier_activities
-    target_table: numenclature
+  # bs_numenclature RETIRE (2026-07-07) : la table numenclature est
+  # desormais reconstruite automatiquement depuis le roster vivant
+  # lka_client_mtn.lka_usernames/.lka_supervisors, cf.
+  # src/etl/sql_source.py::sync_numenclature() (execute a chaque run
+  # etl-sync.yml, comme newadd/ads). Si ce flux Excel etait reactive, il
+  # ECRASERAIT la table reconstruite avec le vieux contenu fige de
+  # 'Numenclature.xlsx' au prochain run manuel de excel-sync.yml - ne pas
+  # reactiver sans adapter sync_numenclature() en consequence.
 
   - name: bs_kpi_targets
     # Fichier deja present dans le Drive : 'KPI Targets.xlsx'.

@@ -99,7 +99,7 @@ jobs:
           fi
           python -m src.etl.pipeline $ARGS
 
-      - name: Synchroniser newadd (source lka_perf_commissions, meme serveur)
+      - name: Synchroniser newadd/ads/numenclature (source lka_perf_commissions + lka_client_mtn, meme serveur)
         if: ${{ github.event.inputs.dry_run != 'true' }}
         env:
           MYSQL_HOST: ${{ env.CONNECTION_MODE == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (env.CONNECTION_MODE == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
@@ -107,6 +107,10 @@ jobs:
           MYSQL_USER: ${{ vars.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
           MYSQL_DATABASE: ${{ vars.MYSQL_DATABASE }}
+          # Seuil (mois) au-dela duquel un agent sans activite recente est
+          # marque inactif dans numenclature - variable pour pouvoir
+          # l'ajuster sans toucher au code (demande utilisateur, 2026-07-07).
+          INACTIVE_MONTHS: ${{ vars.INACTIVE_MONTHS || '3' }}
         run: python -m src.etl.sql_source
 
       - name: Fermer le tunnel WireGuard
