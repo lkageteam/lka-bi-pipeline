@@ -31,8 +31,19 @@ sudo apt-get install -y -qq sshpass
 # observe lors du diagnostic reseau initial : ~30-40% d'echecs meme avec le
 # bon mot de passe, "Permission denied" sporadique sans lien avec le mot de
 # passe reel). Retry sur la connexion, pas seulement sur le test TCP final.
+#
+# CORRECTION (2026-07-08) : run 28892973670 (cron du 2026-07-07 19:30) a
+# echoue avec 5/5 tentatives en "Permission denied", toutes dans une fenetre
+# de ~30s - ca ressemble a une panne cote serveur CORRELEE (rafale courte),
+# pas a des echecs independants aleatoires. Avec seulement 5 tentatives
+# espacees de 3s, on n'a aucune chance de survivre a une rafale de 30-60s.
+# Passe a 15 tentatives avec un backoff croissant (5s -> 15s -> 30s) pour
+# etaler les tentatives sur ~4 minutes au lieu de 15s, et ainsi avoir de
+# bien meilleures chances de retomber en dehors de la fenetre de panne.
 SSH_CONNECTED=0
-for i in 1 2 3 4 5; do
+ATTEMPT=0
+for delay in 5 5 5 5 5 15 15 15 15 15 30 30 30 30 30; do
+  ATTEMPT=$((ATTEMPT + 1))
   if sshpass -p "$SSH_PASS" ssh -N -f \
     -o StrictHostKeyChecking=no \
     -o UserKnownHostsFile=/dev/null \
@@ -43,15 +54,15 @@ for i in 1 2 3 4 5; do
     -L "127.0.0.1:${MYSQL_PORT}:127.0.0.1:${MYSQL_PORT}" \
     "${SSH_USER}@${SSH_HOST}"; then
     SSH_CONNECTED=1
-    echo "Connexion SSH etablie (tentative $i)."
+    echo "Connexion SSH etablie (tentative $ATTEMPT)."
     break
   fi
-  echo "Connexion SSH echouee (tentative $i), retry..."
-  sleep 3
+  echo "Connexion SSH echouee (tentative $ATTEMPT), retry dans ${delay}s..."
+  sleep "$delay"
 done
 
 if [ "$SSH_CONNECTED" -ne 1 ]; then
-  echo "ERREUR: impossible d'etablir la connexion SSH apres 5 tentatives." >&2
+  echo "ERREUR: impossible d'etablir la connexion SSH apres $ATTEMPT tentatives." >&2
   exit 1
 fi
 
