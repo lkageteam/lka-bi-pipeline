@@ -53,6 +53,25 @@ FLOWS = [
 ]
 
 
+def _canonicalize_usernames(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Fusionne les variantes de casse d'un meme user_name - bug reel observe
+    (2026-07-08) dans lka_perf_commissions.daily_gadd/daily_ads : le meme
+    agent apparait parfois sous 2 casses differentes (ex.
+    'Charles.NOUMONVI' et 'Charles.Noumonvi', 7 cas confirmes). Sans ca, le
+    pivot par utilisateur produit une ligne dupliquee (MySQL les compte
+    comme UNE seule valeur DISTINCT via sa collation accent/casse-
+    insensible, mais pandas les traite comme deux index differents).
+    Normalise vers la premiere casse rencontree (deterministe, stable
+    d'un run a l'autre car la requete SQL n'a pas d'ORDER BY explicite mais
+    l'ordre de retour MySQL est stable pour une meme table non modifiee).
+    """
+    df = df.copy()
+    key = df["user_name"].str.lower()
+    df["user_name"] = df.groupby(key)["user_name"].transform("first")
+    return df
+
+
 def sync_pivot_source(loader: SQLLoader, flow: PivotSourceFlow) -> Dict[str, int]:
     query = text(
         f"SELECT user_name, perf_date, {flow.value_column} "
@@ -64,6 +83,8 @@ def sync_pivot_source(loader: SQLLoader, flow: PivotSourceFlow) -> Dict[str, int
     if df.empty:
         logger.warning(f"[{flow.name}] {SOURCE_DATABASE}.{flow.source_table} est vide, rien a synchroniser.")
         return {"tsa_rows": 0, "bs_rows": 0}
+
+    df = _canonicalize_usernames(df)
 
     # Format long, historique (tsa_activities.<table>)
     long_df = df.rename(columns={"user_name": "Username", "perf_date": "Date", flow.value_column: flow.target_table})
