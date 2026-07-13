@@ -11,10 +11,25 @@ on:
         description: "Dry run (pas d'ecriture MySQL)"
         required: false
         default: "false"
-
-# Pas de cron pour l'instant : mises a jour manuelles peu frequentes,
-# declenchement manuel en attendant de definir un rythme (cf. discussion
-# avec l'utilisateur).
+      connection_mode:
+        description: "Chemin de connexion MySQL a utiliser"
+        required: false
+        type: choice
+        default: ssh_tunnel
+        options:
+          - direct
+          - wireguard
+          - ssh_tunnel
+  schedule:
+    # CORRECTION (2026-07-13) : cron absent jusqu'ici ("mises a jour peu
+    # frequentes, on verra plus tard") - redevenu critique car numenclature
+    # depend desormais de ce workflow pour rafraichir les 2 fichiers Excel
+    # encore actifs (Numenclature.xlsx/KPI Targets.xlsx/Supervisor_list.xlsx
+    # via sql_source.py, mais tsa_numenclature/tsa_kiosk_data/etc. restent
+    # sources UNIQUEMENT via ce workflow Excel). Une fois par jour : ces
+    # fichiers sont mis a jour manuellement par l'equipe, pas en temps reel,
+    # une cadence plus rapide que etl-sync.yml (6h) n'apporterait rien.
+    - cron: "0 5 * * *"
 
 concurrency:
   group: excel-sync
@@ -24,6 +39,14 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # CORRECTION (2026-07-13) : meme bug que etl-sync.yml avait avant
+      # d'etre corrige (2026-07-07) - ce workflow n'utilisait QUE
+      # MYSQL_HOST_DIRECT, jamais le tunnel SSH, alors que la connexion
+      # directe depuis les runners GitHub Actions echoue ~30-40% du temps
+      # (deja diagnostique). Un cron sans ce fix aurait echoue de facon
+      # intermittente et silencieuse. Fallback ssh_tunnel comme etl-sync.yml.
+      CONNECTION_MODE: ${{ github.event.inputs.connection_mode || 'ssh_tunnel' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -34,11 +57,29 @@ jobs:
       - name: Installer les dependances
         run: pip install -r requirements.txt
 
+      - name: Monter le tunnel WireGuard
+        if: ${{ env.CONNECTION_MODE == 'wireguard' }}
+        env:
+          WG_CI_PRIVATE_KEY: ${{ secrets.WG_CI_PRIVATE_KEY }}
+          WG_SERVER_PUBLIC_KEY: ${{ secrets.WG_SERVER_PUBLIC_KEY }}
+          WG_SERVER_ENDPOINT: ${{ vars.WG_SERVER_ENDPOINT }}
+          WG_CLIENT_ADDRESS: ${{ vars.WG_CLIENT_ADDRESS }}
+        run: bash scripts/wireguard_up.sh
+
+      - name: Monter le tunnel SSH
+        if: ${{ env.CONNECTION_MODE == 'ssh_tunnel' }}
+        env:
+          SSH_HOST: ${{ vars.SSH_HOST }}
+          SSH_USER: ${{ vars.SSH_USER }}
+          SSH_PASS: ${{ secrets.SSH_PASS }}
+          MYSQL_PORT: ${{ vars.MYSQL_PORT }}
+        run: bash scripts/ssh_tunnel_up.sh
+
       - name: Executer le pipeline Excel
         env:
           GDRIVE_SERVICE_ACCOUNT_JSON: ${{ secrets.GDRIVE_SERVICE_ACCOUNT_JSON }}
           GDRIVE_FOLDER_ID: ${{ vars.GDRIVE_FOLDER_ID }}
-          MYSQL_HOST: ${{ vars.MYSQL_HOST_DIRECT }}
+          MYSQL_HOST: ${{ env.CONNECTION_MODE == 'wireguard' && vars.MYSQL_HOST_TUNNEL || (env.CONNECTION_MODE == 'ssh_tunnel' && '127.0.0.1' || vars.MYSQL_HOST_DIRECT) }}
           MYSQL_PORT: ${{ vars.MYSQL_PORT }}
           MYSQL_USER: ${{ vars.MYSQL_USER }}
           MYSQL_PASSWORD: ${{ secrets.MYSQL_PASSWORD }}
@@ -48,9 +89,17 @@ jobs:
         run: |
           ARGS=""
           if [ -n "$FLOWS_INPUT" ]; then
-            ARGS="--flows $FLOWS_INPUT"
+            ARGS="--flows $(echo "$FLOWS_INPUT" | tr ',' ' ')"
           fi
           if [ "$DRY_RUN_INPUT" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
           python -m src.etl.excel_pipeline $ARGS
+
+      - name: Fermer le tunnel WireGuard
+        if: ${{ always() && env.CONNECTION_MODE == 'wireguard' }}
+        run: sudo wg-quick down wg0 || true
+
+      - name: Fermer le tunnel SSH
+        if: ${{ always() && env.CONNECTION_MODE == 'ssh_tunnel' }}
+        run: pkill -f "ssh -N -f" || true

@@ -14,9 +14,23 @@ from typing import Dict, List, Optional
 
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
+
+# CORRECTION (2026-07-13) : audit suite au bug de cron manquant sur
+# excel-sync.yml - contrairement a extractor.py/loader.py (MongoDB/MySQL),
+# ce module n'avait AUCUN retry sur les appels a l'API Google Drive. Meme
+# categorie de risque (echec transitoire = run entier rate), pas encore
+# observe en pratique mais corrige par coherence/prudence.
+_retry_drive_api = retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=3, max=30),
+    retry=retry_if_exception_type((HttpError, ConnectionError, TimeoutError)),
+    reraise=True,
+)
 
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 
@@ -49,6 +63,7 @@ class DriveClient:
         except Exception as e:
             return {"visible": False, "error": str(e)}
 
+    @_retry_drive_api
     def list_files(self) -> List[Dict]:
         """Liste tous les fichiers du dossier surveille (non recursif)."""
         files = []
@@ -65,6 +80,7 @@ class DriveClient:
                 break
         return files
 
+    @_retry_drive_api
     def download_file(self, file_id: str, mime_type: str, dest_path: str) -> str:
         """
         Telecharge un fichier. Convertit automatiquement les Google Sheets
