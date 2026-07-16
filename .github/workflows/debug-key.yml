@@ -1,0 +1,20 @@
+name: Debug Key (temporaire)
+on: workflow_dispatch
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Empreinte de la cle reconstruite depuis le secret
+        env:
+          SSH_PKEY: ${{ secrets.SSH_PKEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PKEY" > ~/.ssh/k && chmod 600 ~/.ssh/k
+          wc -c ~/.ssh/k
+          ssh-keygen -y -f ~/.ssh/k > ~/.ssh/k.pub && echo "cle privee VALIDE"
+          ssh-keygen -lf ~/.ssh/k.pub
+          ssh -i ~/.ssh/k -o IdentitiesOnly=yes -o BatchMode=yes \
+            -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            -o ConnectTimeout=15 -v \
+            root@75.119.154.255 'echo OK-CLE-RUNNER' 2>&1 | grep -E "OK-CLE|Offering|publickey|denied|Authenticat" | head -15
