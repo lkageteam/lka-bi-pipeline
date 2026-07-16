@@ -40,9 +40,19 @@ sudo apt-get install -y -qq sshpass
 # Passe a 15 tentatives avec un backoff croissant (5s -> 15s -> 30s) pour
 # etaler les tentatives sur ~4 minutes au lieu de 15s, et ainsi avoir de
 # bien meilleures chances de retomber en dehors de la fenetre de panne.
+#
+# CORRECTION (2026-07-16) : run 29481386042 - 15/15 refus "Permission
+# denied" sur 5 min. Le refus soutenu pour une meme IP (alors que les crons
+# voisins passent depuis d'autres runners) pointe vers un ban d'IP cote
+# serveur (fail2ban/anti-abus), que nos propres rafales d'auth mot de passe
+# ENTRETIENNENT : apres les premiers echecs, chaque tentative suivante est
+# refusee d'office ET prolonge le ban. Insister depuis la meme IP est
+# contre-productif. On redescend donc a 6 tentatives (~2 min, assez pour
+# une rafale courte) ; les pannes plus longues sont couvertes par
+# auto-retry.yml qui rejoue le job sur un runner NEUF (= nouvelle IP).
 SSH_CONNECTED=0
 ATTEMPT=0
-for delay in 5 5 5 5 5 15 15 15 15 15 30 30 30 30 30; do
+for delay in 5 10 20 30 45 0; do
   ATTEMPT=$((ATTEMPT + 1))
   if sshpass -p "$SSH_PASS" ssh -N -f \
     -o StrictHostKeyChecking=no \
