@@ -68,6 +68,11 @@ jobs:
         env:
           SSH_HOST: ${{ vars.SSH_HOST }}
           SSH_USER: ${{ vars.SSH_USER }}
+          # Cle privee ed25519 (preferee) ; le mot de passe reste en repli
+          # tant que la cle publique n'est pas installee sur le serveur.
+          # Pourquoi : fenetres de refus de l'auth mot de passe cote VPS,
+          # cf. D:\LKA\MYSQL_CONNECTION_METHODS.md §6.
+          SSH_PKEY: ${{ secrets.SSH_PKEY }}
           SSH_PASS: ${{ secrets.SSH_PASS }}
           MYSQL_PORT: ${{ vars.MYSQL_PORT }}
         run: bash scripts/ssh_tunnel_up.sh
