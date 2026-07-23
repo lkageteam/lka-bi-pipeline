@@ -53,7 +53,7 @@ if ("createdAt" %in% colnames(Data_mcare_reports)) {
 conn <- dbConnect(
   MariaDB(),
   user = "root",
-  password = "My670552646@", 
+  password = Sys.getenv("MYSQL_PASSWORD"), 
   dbname = "MOBILE_CARE", 
   host = "localhost"
 )
