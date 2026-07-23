@@ -8,7 +8,7 @@ library(readxl)
 conn <- dbConnect(
   MariaDB(),
   user = "root",
-  password = "My670552646@", 
+  password = Sys.getenv("MYSQL_PASSWORD"), 
   dbname = "BRAND_SOLDIER_ACTIVITIES", 
   host = "localhost"
 )
