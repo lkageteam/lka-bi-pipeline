@@ -136,7 +136,7 @@ if ("createdAt" %in% colnames(Data_tsa_deployments)) {
 conn <- dbConnect(
   MariaDB(),
   user = "root",
-  password = "My670552646@", 
+  password = Sys.getenv("MYSQL_PASSWORD"), 
   dbname = "TSA_ACTIVITIES", 
   host = "localhost"
 )
