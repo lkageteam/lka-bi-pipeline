@@ -396,7 +396,7 @@ if ("numClient" %in% colnames(Data_MTN_Hype) && nrow(Data_MTN_Hype) > 0) {
 conn <- dbConnect(
   MariaDB(),
   user = "root",
-  password = "My670552646@", 
+  password = Sys.getenv("MYSQL_PASSWORD"), 
   dbname = "BRAND_SOLDIER_ACTIVITIES", 
   host = "localhost"
 )
