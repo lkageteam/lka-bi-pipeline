@@ -1,0 +1,47 @@
+name: Debug HostKey (temporaire)
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Sonder l'empreinte hote + l'auth sur 20 tentatives
+        env:
+          SSH_PKEY: ${{ secrets.SSH_PKEY }}
+        run: |
+          python3 -m pip install -q paramiko
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PKEY" > ~/.ssh/k && chmod 600 ~/.ssh/k
+          echo "IP sortante du runner : $(curl -s --max-time 10 https://api.ipify.org || echo inconnue)"
+          python3 - <<'PY'
+          import base64, hashlib, socket, time
+          import paramiko
+          from collections import Counter
+          fps, results = Counter(), Counter()
+          for i in range(1, 21):
+              t = None
+              try:
+                  s = socket.create_connection(("75.119.154.255", 22), timeout=10)
+                  t = paramiko.Transport(s); t.start_client(timeout=10)
+                  k = t.get_remote_server_key()
+                  fp = base64.b64encode(hashlib.sha256(k.asbytes()).digest()).decode().rstrip("=")
+                  fps[f"{k.get_name()} {fp}"] += 1
+                  banner = t.remote_version
+                  try:
+                      t.auth_publickey("root", paramiko.Ed25519Key.from_private_key_file(str(__import__("pathlib").Path.home()/".ssh"/"k")))
+                      res = "AUTH_OK"
+                  except Exception as e:
+                      res = f"AUTH_KO:{type(e).__name__}"
+                  results[res] += 1
+                  print(f"#{i:02d} {res:28} fp={fp[:16]}.. {banner[:30]}")
+              except Exception as e:
+                  results[f"CONN_KO:{type(e).__name__}"] += 1
+                  print(f"#{i:02d} CONN_KO {type(e).__name__}: {e}")
+              finally:
+                  if t: t.close()
+              time.sleep(2)
+          print("\n=== EMPREINTES HOTE DISTINCTES ===")
+          for k, v in fps.items(): print(f"  {v:2d}x  {k}")
+          print("=== RESULTATS ===")
+          for k, v in results.items(): print(f"  {v:2d}x  {k}")
+          PY
