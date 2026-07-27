@@ -91,18 +91,26 @@ ssh_connect() {
   fi
 }
 
+# CORRECTION (2026-07-27) : ne PLUS tenter le mot de passe quand une cle est
+# disponible. Le serveur est passe a "PasswordAuthentication no" : chaque
+# tentative mot de passe est un echec garanti, ET elle ouvre une connexion
+# pre-auth supplementaire qui aggrave la saturation de la file sshd
+# (MaxStartups) - laquelle est justement la cause des echecs restants
+# (connexions jetees AVANT lecture de la cle, aucune ligne "Failed publickey"
+# cote serveur). Le mot de passe ne sert plus que si aucune cle n'est fournie.
 SSH_CONNECTED=0
 ATTEMPT=0
 for delay in 5 10 20 30 45 0; do
   ATTEMPT=$((ATTEMPT + 1))
-  if [ -n "$KEY_FILE" ] && ssh_connect "cle"; then
+  if [ -n "$KEY_FILE" ]; then
+    if ssh_connect "cle"; then
+      SSH_CONNECTED=1
+      echo "Connexion SSH etablie par CLE (tentative $ATTEMPT)."
+      break
+    fi
+  elif [ -n "${SSH_PASS:-}" ] && ssh_connect "mot de passe"; then
     SSH_CONNECTED=1
-    echo "Connexion SSH etablie par CLE (tentative $ATTEMPT)."
-    break
-  fi
-  if [ -n "${SSH_PASS:-}" ] && ssh_connect "mot de passe"; then
-    SSH_CONNECTED=1
-    echo "Connexion SSH etablie par MOT DE PASSE (tentative $ATTEMPT) - installer la cle publique sur le serveur pour fiabiliser (cf. MYSQL_CONNECTION_METHODS.md §6)."
+    echo "Connexion SSH etablie par MOT DE PASSE (tentative $ATTEMPT) - aucune cle fournie via SSH_PKEY."
     break
   fi
   echo "Connexion SSH echouee (tentative $ATTEMPT), retry dans ${delay}s..."
