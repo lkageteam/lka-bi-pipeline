@@ -54,9 +54,35 @@ fi
 #      les pannes longues sont couvertes par auto-retry.yml qui rejoue le
 #      job sur un runner NEUF (= nouvelle IP).
 
+# CAUSE RACINE (identifiee le 2026-07-27) : DEUX machines differentes
+# repondent sur 75.119.154.255:22, en alternance ~50/50 :
+#   - la NOTRE : vmi2705246, OpenSSH 9.6p1 (Ubuntu 24.04), cle hote
+#     SHA256:1Agcd+p8/B2xglBgm1FkIRTzIHBZ5iGNzKuj3Qsz/5Y, MySQL sur 3306 ;
+#   - une AUTRE : OpenSSH 8.9p1 (Ubuntu 22.04), cle hote
+#     SHA256:QrIr0YcLKw5uVjIPCd0zZdk4/ugzS2DnMmjmFoiGTlI, sans notre cle
+#     et sans MySQL (port 3306 -> Connection refused).
+# Mesure depuis un runner : 10 tentatives -> 10 sur la bonne, 10 sur
+# l'autre. C'est l'explication unique de TOUS les symptomes depuis le
+# 2026-07-09 : "Connection refused" sur MySQL, "Authentication failed" sur
+# la cle ET le mot de passe, absence de toute ligne d'echec dans les logs
+# de NOTRE machine (les echecs se produisent sur l'autre).
+#
+# Parade : on EPINGLE la cle hote de notre machine. Une connexion qui
+# atterrit sur l'autre echoue immediatement (cle hote inconnue, ~1s) au
+# lieu de consommer un cycle d'authentification complet, et on retente.
+# Chaque tentative ayant ~50% de chances, 12 tentatives -> risque d'echec
+# total ~0,02%. Le correctif DEFINITIF est cote hebergeur (supprimer le
+# conflit d'IP) - cf. D:\LKA\MYSQL_CONNECTION_METHODS.md par.6.8.
+KNOWN_HOSTS="$HOME/.ssh/lka_known_hosts"
+mkdir -p "$HOME/.ssh"; chmod 700 "$HOME/.ssh"
+cat > "$KNOWN_HOSTS" <<'EOF'
+75.119.154.255 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOu0zavyHwl0YABFSjpu1YmUMOzL7OfTIwy3beibXwGj
+EOF
+chmod 600 "$KNOWN_HOSTS"
+
 SSH_COMMON_OPTS=(
-  -o StrictHostKeyChecking=no
-  -o UserKnownHostsFile=/dev/null
+  -o StrictHostKeyChecking=yes
+  -o UserKnownHostsFile="$KNOWN_HOSTS"
   -o ConnectTimeout=15
   -o ServerAliveInterval=15
   -o ServerAliveCountMax=3
@@ -98,9 +124,12 @@ ssh_connect() {
 # (MaxStartups) - laquelle est justement la cause des echecs restants
 # (connexions jetees AVANT lecture de la cle, aucune ligne "Failed publickey"
 # cote serveur). Le mot de passe ne sert plus que si aucune cle n'est fournie.
+# Tentatives nombreuses mais RAPIDES : atterrir sur la mauvaise machine
+# coute ~1s (rejet sur cle hote), pas un cycle d'auth. On enchaine donc
+# 12 essais courts avant d'espacer.
 SSH_CONNECTED=0
 ATTEMPT=0
-for delay in 5 10 20 30 45 0; do
+for delay in 2 2 2 3 3 3 5 5 10 15 30 0; do
   ATTEMPT=$((ATTEMPT + 1))
   if [ -n "$KEY_FILE" ]; then
     if ssh_connect "cle"; then
