@@ -33,14 +33,27 @@ on:
     # sources UNIQUEMENT via ce workflow Excel). Une fois par jour : ces
     # fichiers sont mis a jour manuellement par l'equipe, pas en temps reel,
     # une cadence plus rapide que etl-sync.yml (6h) n'apporterait rien.
-    # CORRECTION (2026-07-28) : passe de 1x/jour a TOUTES LES HEURES. Le
-    # metier se plaignait de devoir attendre jusqu'a 24h entre le depot
-    # d'un fichier dans le Drive et sa visibilite en base. Le cout reste
-    # negligeable car le pipeline compare desormais la date de
-    # modification Drive a l'etat memorise (table _excel_sync_state) et
-    # ne recharge QUE les fichiers reellement modifies : un run sans
-    # changement se limite a un appel API Drive de quelques secondes.
-    - cron: "0 * * * *"
+    # CORRECTION (2026-07-28) : 3 passages par jour (demande utilisateur),
+    # au lieu de 1x/jour puis d'un essai a toutes les heures juge trop
+    # frequent. Le metier se plaignait d'attendre jusqu'a 24h entre le
+    # depot d'un fichier dans le Drive et sa visibilite en base ; avec 3
+    # passages le delai maximum tombe a ~8h. Le cout reste negligeable :
+    # le pipeline compare la date de modification Drive a l'etat memorise
+    # (table _excel_sync_state) et ne recharge QUE les fichiers modifies -
+    # un run sans changement se limite a un appel API Drive.
+    #
+    # MINUTE 17 ET NON 0, VOLONTAIREMENT : GitHub met en file d'attente
+    # les workflows planifies, et la congestion est maximale a la minute
+    # 0 (tout le monde y planifie). Mesure sur ce depot avec l'ancien
+    # cron "0 5 * * *" : declenchement reel systematiquement vers 07h15-
+    # 07h35 UTC, soit ~2h30 de retard. Une minute decalee reduit
+    # fortement ce retard.
+    #
+    # Heures en UTC (le Benin est en UTC+1) :
+    #   03:17 UTC = 04:17 au Benin  (tot le matin)
+    #   13:17 UTC = 14:17 au Benin  (debut d'apres-midi)
+    #   20:17 UTC = 21:17 au Benin  (soir)
+    - cron: "17 3,13,20 * * *"
 
 concurrency:
   group: excel-sync
