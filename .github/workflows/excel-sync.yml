@@ -11,6 +11,10 @@ on:
         description: "Dry run (pas d'ecriture MySQL)"
         required: false
         default: "false"
+      force:
+        description: "Forcer le rechargement meme si le fichier Drive n'a pas change"
+        required: false
+        default: "false"
       connection_mode:
         description: "Chemin de connexion MySQL a utiliser"
         required: false
@@ -29,7 +33,14 @@ on:
     # sources UNIQUEMENT via ce workflow Excel). Une fois par jour : ces
     # fichiers sont mis a jour manuellement par l'equipe, pas en temps reel,
     # une cadence plus rapide que etl-sync.yml (6h) n'apporterait rien.
-    - cron: "0 5 * * *"
+    # CORRECTION (2026-07-28) : passe de 1x/jour a TOUTES LES HEURES. Le
+    # metier se plaignait de devoir attendre jusqu'a 24h entre le depot
+    # d'un fichier dans le Drive et sa visibilite en base. Le cout reste
+    # negligeable car le pipeline compare desormais la date de
+    # modification Drive a l'etat memorise (table _excel_sync_state) et
+    # ne recharge QUE les fichiers reellement modifies : un run sans
+    # changement se limite a un appel API Drive de quelques secondes.
+    - cron: "0 * * * *"
 
 concurrency:
   group: excel-sync
@@ -89,6 +100,7 @@ jobs:
           MYSQL_DATABASE: ${{ vars.MYSQL_DATABASE }}
           FLOWS_INPUT: ${{ github.event.inputs.flows }}
           DRY_RUN_INPUT: ${{ github.event.inputs.dry_run }}
+          FORCE_INPUT: ${{ github.event.inputs.force }}
         run: |
           ARGS=""
           if [ -n "$FLOWS_INPUT" ]; then
@@ -96,6 +108,9 @@ jobs:
           fi
           if [ "$DRY_RUN_INPUT" = "true" ]; then
             ARGS="$ARGS --dry-run"
+          fi
+          if [ "$FORCE_INPUT" = "true" ]; then
+            ARGS="$ARGS --force"
           fi
           python -m src.etl.excel_pipeline $ARGS
 
