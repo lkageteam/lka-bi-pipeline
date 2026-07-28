@@ -125,11 +125,15 @@ ssh_connect() {
 # (connexions jetees AVANT lecture de la cle, aucune ligne "Failed publickey"
 # cote serveur). Le mot de passe ne sert plus que si aucune cle n'est fournie.
 # Tentatives nombreuses mais RAPIDES : atterrir sur la mauvaise machine
-# coute ~1s (rejet sur cle hote), pas un cycle d'auth. On enchaine donc
-# 12 essais courts avant d'espacer.
+# coute ~1s (rejet sur cle hote), pas un cycle d'auth.
+# CORRECTION (2026-07-28) : 12 essais ne suffisent pas - le run 30342695720
+# a enchaine 12 atterrissages sur la mauvaise machine. Le tirage n'est pas
+# exactement 50/50 selon le runner. On passe a 30 essais avec un backoff
+# court et constant : ~1s par essai rate, soit ~90s au pire, et un risque
+# residuel negligeable meme si le tirage est defavorable (0,7^30 ~ 0,002%).
 SSH_CONNECTED=0
 ATTEMPT=0
-for delay in 2 2 2 3 3 3 5 5 10 15 30 0; do
+for delay in 2 2 2 2 2 2 2 2 2 2 3 3 3 3 3 3 3 3 3 3 5 5 5 5 5 5 5 5 5 0; do
   ATTEMPT=$((ATTEMPT + 1))
   if [ -n "$KEY_FILE" ]; then
     if ssh_connect "cle"; then
