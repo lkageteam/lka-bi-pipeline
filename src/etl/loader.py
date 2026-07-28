@@ -178,11 +178,49 @@ class SQLLoader:
         reraise=True,
     )
     def _replace_table_with_retry(self, df: pd.DataFrame, table_name: str, database: Optional[str] = None) -> None:
+        """
+        Remplacement ATOMIQUE : chargement dans une table temporaire, puis
+        RENAME TABLE (operation atomique en MySQL, aucune fenetre de
+        visibilite).
+
+        CORRECTION (2026-07-28) : la version precedente faisait
+        to_sql(if_exists="replace"), c'est-a-dire DROP + CREATE + INSERT.
+        En MySQL, DROP/CREATE declenchent un COMMIT IMPLICITE : le
+        engine.begin() ne protegeait donc rien. Pendant toute la duree du
+        chargement (~90s pour tsa_rgb30_client_data et ses 155k lignes), la
+        table etait ABSENTE puis partiellement remplie pour tout lecteur
+        (Power BI, Looker, Apps Script, requetes manuelles) - source de
+        chiffres faux vus par les utilisateurs metier, signale le
+        2026-07-28. Avec RENAME TABLE, l'ancienne table reste intacte
+        jusqu'a la bascule instantanee.
+        """
+        def q(name: str) -> str:
+            return f"`{database}`.`{name}`" if database else f"`{name}`"
+
+        # Nom court : MySQL limite les identifiants a 64 caracteres.
+        new_table = f"_new_{table_name}"[:64]
+        old_table = f"_old_{table_name}"[:64]
+
         with self.engine.begin() as conn:
             if database:
                 conn.execute(text(f"CREATE DATABASE IF NOT EXISTS `{database}` CHARACTER SET utf8mb4"))
-            df.to_sql(table_name, conn, schema=database, if_exists="replace", index=False, chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
-        logger.info(f"Table '{(database + '.' if database else '')}{table_name}' remplacee ({len(df)} lignes).")
+            conn.execute(text(f"DROP TABLE IF EXISTS {q(new_table)}"))
+            df.to_sql(new_table, conn, schema=database, if_exists="replace", index=False,
+                      chunksize=5000, method="multi", dtype=self._text_dtype_map(df))
+
+        with self.engine.begin() as conn:
+            exists = inspect(self.engine).has_table(table_name, schema=database)
+            if exists:
+                # RENAME TABLE a plusieurs elements est atomique : aucun
+                # instant ou la table cible n'existe pas.
+                conn.execute(text(
+                    f"RENAME TABLE {q(table_name)} TO {q(old_table)}, {q(new_table)} TO {q(table_name)}"
+                ))
+                conn.execute(text(f"DROP TABLE IF EXISTS {q(old_table)}"))
+            else:
+                conn.execute(text(f"RENAME TABLE {q(new_table)} TO {q(table_name)}"))
+
+        logger.info(f"Table '{(database + '.' if database else '')}{table_name}' remplacee ({len(df)} lignes, bascule atomique).")
 
     @retry(
         stop=stop_after_attempt(8),
