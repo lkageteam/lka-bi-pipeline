@@ -57,10 +57,36 @@ excel_flows:
     target_database: tsa_activities
     target_table: tsa_rgb30_target
 
-  - name: tsa_rgb30_client_data
-    match: tsa_rgb30_client_data
-    target_database: tsa_activities
-    target_table: tsa_rgb30_client_data
+  # tsa_rgb30_client_data RETIRE (2026-08-04) : DEUX PRODUCTEURS ECRIVAIENT
+  # DANS LA MEME TABLE. Ce flux la reconstruisait en overwrite complet depuis
+  # 'tsa_rgb30_client_data.xlsx' (Drive), pendant que le pipeline
+  # lkageteam/lka-unified `pipelines/rgb30_intake/` la charge depuis la piece
+  # jointe du mail MTN 'Merchants activities analysis'. Meme contenu, deux
+  # chemins, aucune coordination : le dernier arrive gagnait.
+  #
+  # Le pipeline unifie devient le producteur UNIQUE. Il apporte trois choses
+  # que ce flux n'a pas :
+  #   - un garde-fou qui refuse une capture plus ANCIENNE que la base
+  #     (recharger un vieux fichier faisait reculer la table sans erreur) ;
+  #   - un journal de provenance date, lka_client_mtn.rgb30_captures - cette
+  #     table n'a AUCUNE colonne de date de chargement, donc sans lui rien ne
+  #     DATE la capture et le chien de garde n'a aucune prise ;
+  #   - un contrat de schema confronte a information_schema avant ecriture.
+  #
+  # ⚠️ CONSEQUENCE A CONNAITRE : deposer/modifier 'tsa_rgb30_client_data.xlsx'
+  #    dans le Drive N'A DESORMAIS PLUS AUCUN EFFET sur la base. Sans erreur,
+  #    sans alerte. Si quelqu'un depose ce fichier en croyant mettre la table a
+  #    jour, il faut le lui dire.
+  #
+  # ⚠️ NE PAS remplacer par `enabled: false` : ExcelFlowConfig est une
+  #    dataclass sans ce champ (src/etl/excel_pipeline.py:26-31) et
+  #    `ExcelFlowConfig(**entry)` leverait TypeError sur TOUT le fichier - les
+  #    11 autres flux tomberaient avec. Commenter est le seul mecanisme sur.
+  #
+  # - name: tsa_rgb30_client_data
+  #   match: tsa_rgb30_client_data
+  #   target_database: tsa_activities
+  #   target_table: tsa_rgb30_client_data
 
   - name: tsa_sectorisation
     match: tsa_sectorisation
